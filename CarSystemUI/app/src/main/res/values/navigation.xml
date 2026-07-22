@@ -1,0 +1,24 @@
+<resources>
+    <dimen name="navigation_bar_height">126dp</dimen>
+    <dimen name="control_center_width">360dp</dimen>
+    <dimen name="control_center_margin">20dp</dimen>
+
+    <style name="NavigationButton">
+        <item name="android:layout_width">56dp</item>
+        <item name="android:layout_height">56dp</item>
+        <item name="android:layout_marginHorizontal">8dp</item>
+        <item name="android:background">@drawable/navigation_button_background</item>
+        <item name="android:padding">14dp</item>
+        <item name="android:scaleType">centerInside</item>
+    </style>
+
+    <style name="ClimateRoundButton">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:background">@drawable/navigation_button_background</item>
+        <item name="android:textColor">#FFFFFFFF</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+    </style>
+</resources>

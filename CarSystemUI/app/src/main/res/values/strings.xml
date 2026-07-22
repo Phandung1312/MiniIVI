@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">CarSystemUI</string>
+    <string name="navigation_back">Quay lại</string>
+    <string name="navigation_home">Màn hình chính</string>
+    <string name="navigation_recents">Ứng dụng gần đây</string>
+    <string name="navigation_control_center">Trung tâm điều khiển</string>
+    <string name="control_center_title">Trung tâm điều khiển</string>
+    <string name="control_wifi">Wi-Fi</string>
+    <string name="control_bluetooth">Bluetooth</string>
+    <string name="control_settings">Cài đặt</string>
+    <string name="control_volume">Âm lượng</string>
+    <string name="climate_waiting">Đang kết nối điều hòa…</string>
+    <string name="climate_unavailable">Không có dữ liệu HVAC</string>
+    <string name="climate_cabin">Cabin --°C</string>
+    <string name="climate_ac">A/C</string>
+    <string name="temperature_decrease">Giảm nhiệt độ</string>
+    <string name="temperature_increase">Tăng nhiệt độ</string>
+</resources>

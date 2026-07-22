@@ -1,0 +1,6 @@
+# Copy this file to signing.properties. Never commit the real file or keys.
+# Paths are relative to the project root; use forward slashes on Windows.
+storeFile=keys/platform.p12
+storePassword=change-me
+keyAlias=platform
+keyPassword=change-me
