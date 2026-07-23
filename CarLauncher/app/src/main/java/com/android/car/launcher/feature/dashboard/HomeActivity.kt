@@ -1,15 +1,15 @@
-package com.android.car.launcher
+package com.android.car.launcher.feature.dashboard
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
-import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
+import dagger.hilt.android.AndroidEntryPoint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,12 +30,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.android.car.launcher.R
 
+@AndroidEntryPoint
 class HomeActivity : ComponentActivity() {
     private  val TAG = this.javaClass.simpleName
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -154,7 +157,7 @@ private fun BluetoothIcon() {
 private fun MediaIcon() {
     Canvas(Modifier.size(72.dp)) {
         drawCircle(Color(0xFFFB6D79), style = Stroke(width = 5.dp.toPx()))
-        val path = androidx.compose.ui.graphics.Path().apply {
+        val path = Path().apply {
             moveTo(size.width * .42f, size.height * .30f)
             lineTo(size.width * .72f, size.height * .50f)
             lineTo(size.width * .42f, size.height * .70f)
