@@ -1,15 +1,10 @@
 package com.android.car.launcher.feature.dashboard
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.os.Bundle
-import android.provider.Settings
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
-import dagger.hilt.android.AndroidEntryPoint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,21 +28,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.android.car.launcher.R
+import com.android.car.launcher.core.navigation.AppDestination
+import com.android.car.launcher.core.navigation.navigateTo
+import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class HomeActivity : ComponentActivity() {
-    private  val TAG = this.javaClass.simpleName
+    private val tag = javaClass.simpleName
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d(tag, "onCreate")
         setContent {
             MaterialTheme {
                 HomeScreen(
-                    onBluetoothClick = { openBluetooth() },
-                    onMediaClick = { openMedia() },
+                    onBluetoothClick = { navigateTo(AppDestination.Bluetooth) },
+                    onMediaClick = { navigateTo(AppDestination.Media) },
                 )
             }
         }
@@ -55,36 +56,13 @@ class HomeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        Log.d(TAG, "resume excuted")
+        Log.d(tag, "onResume")
     }
 
     override fun onPause() {
+        Log.d(tag, "onPause")
         super.onPause()
     }
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-    }
-
-    private fun openBluetooth() {
-        launch(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
-    }
-
-    private fun openMedia() {
-        val mediaIntent = Intent(Intent.ACTION_MAIN)
-            .addCategory(Intent.CATEGORY_APP_MUSIC)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        launch(mediaIntent)
-    }
-
-    private fun launch(intent: Intent) {
-        try {
-            startActivity(intent)
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(this, R.string.app_not_available, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-
 }
 
 @Composable
@@ -101,12 +79,12 @@ private fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AppTile(
-                title = "Bluetooth",
+                title = stringResource(R.string.bluetooth),
                 icon = { BluetoothIcon() },
                 onClick = onBluetoothClick,
             )
             AppTile(
-                title = "Media",
+                title = stringResource(R.string.media),
                 icon = { MediaIcon() },
                 onClick = onMediaClick,
             )

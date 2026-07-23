@@ -3,162 +3,72 @@ package com.android.car.launcher.feature.bluetooth.service
 import android.app.Service
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.IBinder
-import com.android.car.launcher.feature.bluetooth.model.BluetoothEvent
+import android.util.Log
+import com.android.car.launcher.feature.bluetooth.receiver.BluetoothReceiver
 import com.android.car.launcher.feature.bluetooth.repository.BluetoothRepository
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class BluetoothMonitorService : Service() {
-
     @Inject
     lateinit var repository: BluetoothRepository
 
-    private val scope =
-        CoroutineScope(
-            Dispatchers.IO +
-                    SupervisorJob()
-        )
+    @Inject
+    lateinit var receiver: BluetoothReceiver
 
-    override fun onStartCommand(
-        intent: Intent?,
-        flags: Int,
-        startId: Int
-    ): Int {
+    private var receiverRegistered = false
 
-        handleIntent(intent)
-
-        return START_STICKY
+    override fun onCreate() {
+        super.onCreate()
+        Log.d(TAG, "Service onCreate")
+        registerBluetoothReceiver()
     }
 
-    private fun handleIntent(
-        intent: Intent?
-    ) {
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "Service onStartCommand")
+        repository.refresh(repository.state.value.permissionGranted)
+        return START_NOT_STICKY
+    }
 
-        when (intent?.action) {
-
-            BluetoothAdapter.ACTION_STATE_CHANGED -> {
-
-                val state =
-                    intent.getIntExtra(
-                        BluetoothAdapter.EXTRA_STATE,
-                        BluetoothAdapter.ERROR
-                    )
-
-                scope.launch {
-
-                    if (state ==
-                        BluetoothAdapter.STATE_ON
-                    ) {
-
-                        repository.onEvent(
-                            BluetoothEvent.BluetoothOn
-                        )
-                    }
-
-                    if (state ==
-                        BluetoothAdapter.STATE_OFF
-                    ) {
-
-                        repository.onEvent(
-                            BluetoothEvent.BluetoothOff
-                        )
-                    }
-                }
-            }
-
-            BluetoothDevice.ACTION_ACL_CONNECTED -> {
-
-                sendConnectedEvent(intent)
-            }
-
-            BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
-
-                sendDisconnectedEvent(intent)
-            }
-
-            BluetoothDevice.ACTION_NAME_CHANGED -> {
-
-                sendNameChanged(intent)
-            }
+    private fun registerBluetoothReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+            addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED)
+            addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
+            addAction(BluetoothDevice.ACTION_FOUND)
+            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            addAction(BluetoothDevice.ACTION_NAME_CHANGED)
+            addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
         }
-    }
-
-    private fun onEvent(bluetoothOn: BluetoothEvent.BluetoothOn) {}
-
-    private fun sendConnectedEvent(
-        intent: Intent
-    ) {
-
-        val device =
-            intent.getParcelableExtra<BluetoothDevice>(
-                BluetoothDevice.EXTRA_DEVICE
-            ) ?: return
-
-        scope.launch {
-
-            repository.onEvent(
-                BluetoothEvent.DeviceConnected(
-                    address = device.address,
-                    name = device.name
-                )
-            )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(receiver, filter)
         }
+        receiverRegistered = true
+        Log.d(TAG, "Bluetooth BroadcastReceiver registered")
     }
-
-    private fun sendDisconnectedEvent(
-        intent: Intent
-    ) {
-
-        val device =
-            intent.getParcelableExtra<BluetoothDevice>(
-                BluetoothDevice.EXTRA_DEVICE
-            ) ?: return
-
-        scope.launch {
-
-            repository.onEvent(
-                BluetoothEvent.DeviceDisconnected(
-                    address = device.address,
-                    name = device.name
-                )
-            )
-        }
-    }
-
-    private fun sendNameChanged(
-        intent: Intent
-    ) {
-
-        val device =
-            intent.getParcelableExtra<BluetoothDevice>(
-                BluetoothDevice.EXTRA_DEVICE
-            ) ?: return
-
-        scope.launch {
-
-            repository.onEvent(
-                BluetoothEvent.DeviceNameChanged(
-                    address = device.address,
-                    name = device.name
-                )
-            )
-        }
-    }
-
-    override fun onBind(
-        intent: Intent?
-    ): IBinder? = null
 
     override fun onDestroy() {
-        scope.cancel()
+        if (receiverRegistered) {
+            unregisterReceiver(receiver)
+            receiverRegistered = false
+        }
+        Log.d(TAG, "Service onDestroy; Bluetooth BroadcastReceiver unregistered")
         super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    private companion object {
+        const val TAG = "BluetoothService"
     }
 }
