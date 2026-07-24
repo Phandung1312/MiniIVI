@@ -23,15 +23,6 @@ class MediaRepository @Inject constructor(
 
     private var mediaPlayer: MediaPlayer? = null
 
-    fun setPermissionGranted(granted: Boolean) {
-        _state.update {
-            it.copy(
-                permissionGranted = granted,
-                errorMessage = if (granted) null else it.errorMessage,
-            )
-        }
-    }
-
     suspend fun loadSongs() {
         _state.update { it.copy(isLoading = true, errorMessage = null) }
         val result = runCatching {

@@ -2,7 +2,6 @@ package com.android.car.launcher.feature.bluetooth.model
 
 data class BluetoothState(
     val supported: Boolean = true,
-    val permissionGranted: Boolean = false,
     val enabled: Boolean = false,
     val discovering: Boolean = false,
     val pairedDevices: List<DeviceInfo> = emptyList(),

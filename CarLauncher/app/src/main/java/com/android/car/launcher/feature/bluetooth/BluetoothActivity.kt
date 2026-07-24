@@ -1,13 +1,11 @@
 package com.android.car.launcher.feature.bluetooth
 
-import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,59 +39,44 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import com.android.car.launcher.R
 import com.android.car.launcher.core.lifecycle.LifeCycleLogger
 import com.android.car.launcher.core.ui.LoadingActionButton
 import com.android.car.launcher.feature.bluetooth.model.BluetoothState
 import com.android.car.launcher.feature.bluetooth.model.DeviceInfo
-import com.android.car.launcher.feature.bluetooth.repository.BluetoothRepository
 import com.android.car.launcher.feature.bluetooth.service.BluetoothMonitorService
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class BluetoothActivity : LifeCycleLogger() {
-    @Inject
-    lateinit var repository: BluetoothRepository
-
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions(),
-    ) {
-        repository.refresh(hasBluetoothPermission())
-    }
+    private val viewModel by viewModels<BluetoothViewModel>()
 
     private val enableBluetoothLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) {
-        repository.refresh(hasBluetoothPermission())
+        viewModel.refresh()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                val state by repository.state.collectAsState()
+                val state by viewModel.state.collectAsState()
                 BluetoothScreen(
                     state = state,
                     onBack = ::finish,
-                    onRequestPermission = ::requestBluetoothPermission,
                     onEnable = ::requestEnableBluetooth,
-                    onScan = repository::startDiscovery,
+                    onScan = viewModel::startDiscovery,
                 )
             }
         }
-        if (!hasBluetoothPermission()) {
-            requestBluetoothPermission()
-        } else {
-            repository.refresh(true)
-        }
+        viewModel.refresh()
     }
 
     override fun onStart() {
         super.onStart()
         startService(Intent(this, BluetoothMonitorService::class.java))
-        repository.refresh(hasBluetoothPermission())
+        viewModel.refresh()
     }
 
     override fun onDestroy() {
@@ -101,43 +84,15 @@ class BluetoothActivity : LifeCycleLogger() {
         super.onDestroy()
     }
 
-    private fun requestBluetoothPermission() {
-        permissionLauncher.launch(requiredPermissions())
-    }
-
     private fun requestEnableBluetooth() {
-        if (!hasBluetoothPermission()) {
-            requestBluetoothPermission()
-            return
-        }
         enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
     }
-
-    private fun hasBluetoothPermission(): Boolean =
-        requiredPermissions().all { permission ->
-            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
-        }
-
-    private fun requiredPermissions(): Array<String> =
-        when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> arrayOf(
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.BLUETOOTH_CONNECT,
-            )
-
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-            )
-
-            else -> emptyArray()
-        }
 }
 
 @Composable
 private fun BluetoothScreen(
     state: BluetoothState,
     onBack: () -> Unit,
-    onRequestPermission: () -> Unit,
     onEnable: () -> Unit,
     onScan: () -> Unit,
 ) {
@@ -165,24 +120,8 @@ private fun BluetoothScreen(
 
             when {
                 !state.supported -> StatusMessage(stringResource(R.string.bluetooth_not_supported))
-                !state.permissionGranted -> PermissionContent(onRequestPermission)
                 else -> BluetoothContent(state, onEnable, onScan)
             }
-        }
-    }
-}
-
-@Composable
-private fun PermissionContent(onRequestPermission: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        StatusMessage(stringResource(R.string.permission_required))
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = onRequestPermission) {
-            Text(stringResource(R.string.grant_permission))
         }
     }
 }

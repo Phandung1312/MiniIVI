@@ -23,20 +23,9 @@ class BluetoothRepository @Inject constructor(
     val state = _state.asStateFlow()
 
     @SuppressLint("MissingPermission")
-    fun refresh(permissionGranted: Boolean) {
+    fun refresh() {
         if (adapter == null) {
             _state.value = BluetoothState(supported = false)
-            return
-        }
-
-        if (!permissionGranted) {
-            _state.update {
-                it.copy(
-                    permissionGranted = false,
-                    pairedDevices = emptyList(),
-                    nearbyDevices = emptyList(),
-                )
-            }
             return
         }
 
@@ -52,7 +41,6 @@ class BluetoothRepository @Inject constructor(
                 .sortedBy { it.name ?: it.address }
             _state.update {
                 it.copy(
-                    permissionGranted = true,
                     enabled = adapter.isEnabled,
                     discovering = adapter.isDiscovering,
                     pairedDevices = paired,
@@ -60,13 +48,12 @@ class BluetoothRepository @Inject constructor(
             }
         } catch (error: SecurityException) {
             Log.w(TAG, "Bluetooth permission missing while refreshing state", error)
-            _state.update { it.copy(permissionGranted = false) }
         }
     }
 
     @SuppressLint("MissingPermission")
     fun startDiscovery(): Boolean {
-        if (adapter == null || !_state.value.permissionGranted || !_state.value.enabled) return false
+        if (adapter == null || !_state.value.enabled) return false
         return try {
             if (adapter.isDiscovering) adapter.cancelDiscovery()
             _state.update { it.copy(nearbyDevices = emptyList()) }

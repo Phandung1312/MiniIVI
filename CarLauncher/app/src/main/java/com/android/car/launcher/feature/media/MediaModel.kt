@@ -18,7 +18,6 @@ data class MediaTrack(
 )
 
 data class MediaState(
-    val permissionGranted: Boolean = false,
     val tracks: List<MediaTrack> = emptyList(),
     val selectedIndex: Int = 0,
     val isLoading: Boolean = false,
@@ -37,13 +36,8 @@ class MediaModel @Inject constructor(
     val state = repository.state
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    fun onStoragePermissionResult(granted: Boolean) {
-        repository.setPermissionGranted(granted)
-        if (granted && state.value.tracks.isEmpty()) loadSongs()
-    }
-
     fun loadSongs() {
-        if (!state.value.permissionGranted || state.value.isLoading) return
+        if (state.value.isLoading) return
         scope.launch { repository.loadSongs() }
     }
 

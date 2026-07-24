@@ -32,7 +32,7 @@ class BluetoothMonitorService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service onStartCommand")
-        repository.refresh(repository.state.value.permissionGranted)
+        repository.refresh()
         return START_NOT_STICKY
     }
 

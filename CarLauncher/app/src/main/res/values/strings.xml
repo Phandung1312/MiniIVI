@@ -12,8 +12,6 @@
     <string name="open_library">Open library</string>
     <string name="load_music">Load music</string>
     <string name="loading_music">Loading…</string>
-    <string name="audio_permission_required">Audio permission is required to load songs from storage.</string>
-    <string name="grant_audio_permission">Grant audio permission</string>
     <string name="no_songs">No songs found in storage. Add audio files, then press Load music.</string>
     <string name="bluetooth_not_supported">Bluetooth is not supported on this device</string>
     <string name="bluetooth_on">Bluetooth is on</string>
@@ -21,8 +19,6 @@
     <string name="turn_on">Turn on</string>
     <string name="scan">Scan</string>
     <string name="scanning">Scanning…</string>
-    <string name="grant_permission">Grant permission</string>
-    <string name="permission_required">Bluetooth permission is required to show and scan devices.</string>
     <string name="paired_devices">Paired devices</string>
     <string name="nearby_devices">Nearby devices</string>
     <string name="no_devices">No devices found</string>

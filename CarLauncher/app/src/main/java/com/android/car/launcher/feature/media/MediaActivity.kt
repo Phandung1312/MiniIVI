@@ -1,11 +1,7 @@
 package com.android.car.launcher.feature.media
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,7 +42,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -60,12 +55,6 @@ import dagger.hilt.android.AndroidEntryPoint
 class MediaActivity : LifeCycleLogger() {
     private val model by viewModels<MediaModel>()
 
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        model.onStoragePermissionResult(granted)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -74,7 +63,6 @@ class MediaActivity : LifeCycleLogger() {
                 MediaNavigation(
                     state = state,
                     onBack = ::finish,
-                    onRequestPermission = ::requestMediaPermission,
                     onLoad = model::loadSongs,
                     onPlayPause = model::onPlayPause,
                     onNext = model::onNext,
@@ -84,31 +72,7 @@ class MediaActivity : LifeCycleLogger() {
             }
         }
 
-        if (hasMediaPermission()) {
-            model.onStoragePermissionResult(true)
-        } else {
-            requestMediaPermission()
-        }
-    }
-
-    private fun requestMediaPermission() {
-        val permission = requiredMediaPermission()
-        if (permission == null) {
-            model.onStoragePermissionResult(true)
-        } else {
-            permissionLauncher.launch(permission)
-        }
-    }
-
-    private fun hasMediaPermission(): Boolean {
-        val permission = requiredMediaPermission() ?: return true
-        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun requiredMediaPermission(): String? = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> Manifest.permission.READ_MEDIA_AUDIO
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> Manifest.permission.READ_EXTERNAL_STORAGE
-        else -> null
+        model.loadSongs()
     }
 }
 
@@ -121,7 +85,6 @@ private object MediaRoute {
 private fun MediaNavigation(
     state: MediaState,
     onBack: () -> Unit,
-    onRequestPermission: () -> Unit,
     onLoad: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -134,7 +97,6 @@ private fun MediaNavigation(
             PlayerScreen(
                 state = state,
                 onBack = onBack,
-                onRequestPermission = onRequestPermission,
                 onLoad = onLoad,
                 onOpenLibrary = { navController.navigate(MediaRoute.LIBRARY) },
                 onPlayPause = onPlayPause,
@@ -157,7 +119,6 @@ private fun MediaNavigation(
 private fun PlayerScreen(
     state: MediaState,
     onBack: () -> Unit,
-    onRequestPermission: () -> Unit,
     onLoad: () -> Unit,
     onOpenLibrary: () -> Unit,
     onPlayPause: () -> Unit,
@@ -173,22 +134,9 @@ private fun PlayerScreen(
                 onLoad = onLoad,
             )
 
-            if (!state.permissionGranted) {
-                EmptyMediaContent(
-                    message = stringResource(R.string.audio_permission_required),
-                    action = {
-                        Button(onClick = onRequestPermission) {
-                            Text(stringResource(R.string.grant_audio_permission))
-                        }
-                    },
-                )
-                return@Column
-            }
-
             if (state.tracks.isEmpty()) {
                 EmptyMediaContent(
                     message = state.errorMessage ?: stringResource(R.string.no_songs),
-                    action = null,
                 )
                 return@Column
             }
@@ -330,21 +278,18 @@ private fun FeatureHeader(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f),
         )
-        if (state.permissionGranted) {
-            LoadingActionButton(
-                text = stringResource(R.string.load_music),
-                loadingText = stringResource(R.string.loading_music),
-                loading = state.isLoading,
-                onClick = onLoad,
-            )
-        }
+        LoadingActionButton(
+            text = stringResource(R.string.load_music),
+            loadingText = stringResource(R.string.loading_music),
+            loading = state.isLoading,
+            onClick = onLoad,
+        )
     }
 }
 
 @Composable
 private fun EmptyMediaContent(
     message: String,
-    action: (@Composable () -> Unit)?,
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -352,9 +297,5 @@ private fun EmptyMediaContent(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(message, color = Color(0xFFB8C0CC), fontSize = 18.sp)
-        if (action != null) {
-            Spacer(Modifier.height(16.dp))
-            action()
-        }
     }
 }
