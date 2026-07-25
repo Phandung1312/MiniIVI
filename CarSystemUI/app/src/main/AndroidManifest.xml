@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.INJECT_EVENTS" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER_COMPONENT" />
     <uses-permission android:name="android.car.permission.CONTROL_CAR_CLIMATE" />
 
     <application
@@ -37,6 +39,19 @@
             android:name=".navigation.BottomNavigationService"
             android:directBootAware="true"
             android:exported="false" />
+
+        <service
+            android:name=".wallpaper.CarWallpaperService"
+            android:directBootAware="true"
+            android:exported="true"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/car_wallpaper" />
+        </service>
     </application>
 
 </manifest>

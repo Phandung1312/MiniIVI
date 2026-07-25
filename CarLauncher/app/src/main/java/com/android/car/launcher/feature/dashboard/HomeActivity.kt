@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.android.car.launcher.R
 import com.android.car.launcher.core.navigation.AppDestination
 import com.android.car.launcher.core.navigation.navigateTo
+import com.android.car.launcher.core.ui.WallpaperBackground
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -70,7 +70,7 @@ private fun HomeScreen(
     onBluetoothClick: () -> Unit,
     onMediaClick: () -> Unit,
 ) {
-    Surface(color = Color(0xFF0B0D10), modifier = Modifier.fillMaxSize()) {
+    WallpaperBackground {
         Row(
             modifier = Modifier
                 .fillMaxSize()
