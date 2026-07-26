@@ -33,22 +33,31 @@ import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,6 +91,7 @@ class BluetoothActivity : LifeCycleLogger() {
                     onBack = ::finish,
                     onEnable = ::requestEnableBluetooth,
                     onScan = viewModel::startDiscovery,
+                    onRename = viewModel::renameLocalDevice,
                 )
             }
         }
@@ -118,6 +128,7 @@ private fun BluetoothScreen(
     onBack: () -> Unit,
     onEnable: () -> Unit,
     onScan: () -> Unit,
+    onRename: (String) -> Boolean,
 ) {
     WallpaperBackground {
         Box(
@@ -164,7 +175,7 @@ private fun BluetoothScreen(
 
             when {
                 !state.supported -> StatusMessage(stringResource(R.string.bluetooth_not_supported))
-                else -> BluetoothContent(state, onEnable, onScan)
+                else -> BluetoothContent(state, onEnable, onScan, onRename)
             }
         }
     }
@@ -175,7 +186,58 @@ private fun BluetoothContent(
     state: BluetoothState,
     onEnable: () -> Unit,
     onScan: () -> Unit,
+    onRename: (String) -> Boolean,
 ) {
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var renameText by remember { mutableStateOf("") }
+    var renameFailed by remember { mutableStateOf(false) }
+
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text(stringResource(R.string.rename_device)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = renameText,
+                        onValueChange = {
+                            renameText = it
+                            renameFailed = false
+                        },
+                        label = { Text(stringResource(R.string.new_device_name)) },
+                        singleLine = true,
+                        isError = renameFailed,
+                        supportingText = if (renameFailed) {
+                            { Text(stringResource(R.string.rename_failed)) }
+                        } else {
+                            null
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = renameText.isNotBlank(),
+                    onClick = {
+                        if (onRename(renameText)) {
+                            showRenameDialog = false
+                        } else {
+                            renameFailed = true
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
     val cardShape = RoundedCornerShape(24.dp)
     Row(
         modifier = Modifier
@@ -250,6 +312,19 @@ private fun BluetoothContent(
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
         item {
+            LocalDeviceCard(
+                name = state.localName,
+                address = state.localAddress,
+                renameEnabled = state.enabled,
+                onRename = {
+                    renameText = state.localName.orEmpty()
+                    renameFailed = false
+                    showRenameDialog = true
+                },
+            )
+        }
+
+        item {
             DeviceSectionTitle(
                 title = stringResource(R.string.paired_devices),
                 count = state.pairedDevices.size,
@@ -275,6 +350,80 @@ private fun BluetoothContent(
             items(state.nearbyDevices, key = { "nearby-${it.address}" }) { device ->
                 DeviceRow(device, connected = state.connectedDevices.any { it.address == device.address })
             }
+        }
+    }
+}
+
+@Composable
+private fun LocalDeviceCard(
+    name: String?,
+    address: String?,
+    renameEnabled: Boolean,
+    onRename: () -> Unit,
+) {
+    val shape = RoundedCornerShape(20.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xE622303C), shape)
+            .border(1.dp, Color(0x555F9FDC), shape)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .background(Color(0xFF174D78), RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.Bluetooth,
+                contentDescription = null,
+                tint = Color(0xFF76C5FF),
+                modifier = Modifier.size(28.dp),
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 18.dp),
+        ) {
+            Text(
+                stringResource(R.string.this_device),
+                color = Color(0xFF8FD0FF),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                name ?: stringResource(R.string.unknown_device),
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "${stringResource(R.string.bluetooth_address)}: " +
+                    (address ?: stringResource(R.string.address_unavailable)),
+                color = Color(0xFF95A3B2),
+                fontSize = 14.sp,
+            )
+        }
+        Button(
+            onClick = onRename,
+            enabled = renameEnabled,
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF315E80)),
+        ) {
+            Icon(
+                Icons.Default.Edit,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.rename))
         }
     }
 }

@@ -65,26 +65,26 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MediaActivity : LifeCycleLogger() {
-    private val model by viewModels<MediaModel>()
+    private val viewModel by viewModels<MediaViewModel>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                val state by model.state.collectAsState()
+                val state by viewModel.state.collectAsState()
                 MediaNavigation(
                     state = state,
                     onBack = ::finish,
-                    onLoad = model::loadSongs,
-                    onPlayPause = model::onPlayPause,
-                    onNext = model::onNext,
-                    onPrevious = model::onPrevious,
-                    onTrackSelected = model::onTrackSelected,
+                    onLoad = viewModel::loadSongs,
+                    onPlayPause = viewModel::onPlayPause,
+                    onNext = viewModel::onNext,
+                    onPrevious = viewModel::onPrevious,
+                    onTrackSelected = viewModel::onTrackSelected,
                 )
             }
         }
 
-        model.loadSongs()
+        viewModel.loadSongs()
     }
 }
 

@@ -16,4 +16,6 @@ class BluetoothViewModel @Inject constructor(
     fun startDiscovery() {
         repository.startDiscovery()
     }
+
+    fun renameLocalDevice(name: String): Boolean = repository.renameLocalDevice(name)
 }

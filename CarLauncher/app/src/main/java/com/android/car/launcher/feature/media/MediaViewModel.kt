@@ -30,7 +30,7 @@ data class MediaState(
 }
 
 @HiltViewModel
-class MediaModel @Inject constructor(
+class MediaViewModel @Inject constructor(
     private val repository: MediaRepository,
 ) : ViewModel() {
     val state = repository.state

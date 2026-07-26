@@ -43,6 +43,10 @@ class BluetoothRepository @Inject constructor(
                 it.copy(
                     enabled = adapter.isEnabled,
                     discovering = adapter.isDiscovering,
+                    localName = adapter.name,
+                    localAddress = adapter.address.takeUnless { address ->
+                        address == UNAVAILABLE_BLUETOOTH_ADDRESS
+                    },
                     pairedDevices = paired,
                 )
             }
@@ -60,6 +64,23 @@ class BluetoothRepository @Inject constructor(
             adapter.startDiscovery()
         } catch (error: SecurityException) {
             Log.w(TAG, "Bluetooth permission missing while starting discovery", error)
+            false
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun renameLocalDevice(name: String): Boolean {
+        val normalizedName = name.trim()
+        if (adapter == null || !_state.value.enabled || normalizedName.isEmpty()) return false
+
+        return try {
+            adapter.setName(normalizedName).also { renamed ->
+                if (renamed) {
+                    _state.update { it.copy(localName = normalizedName) }
+                }
+            }
+        } catch (error: SecurityException) {
+            Log.w(TAG, "Bluetooth permission missing while renaming local device", error)
             false
         }
     }
@@ -121,5 +142,6 @@ class BluetoothRepository @Inject constructor(
 
     private companion object {
         const val TAG = "BluetoothRepository"
+        const val UNAVAILABLE_BLUETOOTH_ADDRESS = "02:00:00:00:00:00"
     }
 }

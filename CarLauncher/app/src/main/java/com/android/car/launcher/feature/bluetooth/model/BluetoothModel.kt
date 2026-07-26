@@ -4,6 +4,8 @@ data class BluetoothState(
     val supported: Boolean = true,
     val enabled: Boolean = false,
     val discovering: Boolean = false,
+    val localName: String? = null,
+    val localAddress: String? = null,
     val pairedDevices: List<DeviceInfo> = emptyList(),
     val nearbyDevices: List<DeviceInfo> = emptyList(),
     val connectedDevices: List<DeviceInfo> = emptyList(),
