@@ -72,7 +72,18 @@ The allowlist XML must be placed on the same partition as the privileged APK.
 After copying both files, reboot the device; Android reads privapp allowlists
 during system startup.
 
-The current source is still an Android application template; it has no SystemUI
-services or components yet. The setup above supplies signing and compile-time
-infrastructure, but replacing the running SystemUI also requires porting the
-matching CarSystemUI source/components from the target Android branch.
+## 4. SystemUI architecture and Quick Control
+
+The runtime UI is implemented with Kotlin and Jetpack Compose. A process-scoped
+dependency container supplies platform repositories to AndroidX ViewModels,
+while `BottomNavigationService` only owns the navigation and overlay windows.
+
+The rightmost navigation action opens Quick Control. It provides manual display
+brightness, media-stream volume, dual-zone HVAC temperature and A/C controls.
+Brightness and volume use public Android APIs. HVAC is isolated behind a
+reflection-based AAOS adapter so the application can still compile when the ROM
+framework JARs are not checked into this repository.
+
+HVAC capability and range information is read from the target VHAL at runtime.
+Final validation must therefore be performed on the target AAOS build; a host
+build cannot verify vehicle property area IDs or vendor permission policy.
