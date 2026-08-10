@@ -16,3 +16,4 @@ local.properties
 /signing.properties
 /keys/
 /app/libs/framework/*.jar
+/app/libs/miniivi-framework-adapter.jar

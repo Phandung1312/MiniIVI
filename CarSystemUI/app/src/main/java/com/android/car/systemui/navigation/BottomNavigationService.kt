@@ -2,22 +2,18 @@ package com.android.car.systemui.navigation
 
 import android.app.Service
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.PixelFormat
-import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.KeyEvent
-import android.view.View
 import android.view.WindowManager
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.dimensionResource
@@ -42,7 +38,6 @@ import com.android.car.systemui.presentation.CarSystemUiTheme
 import com.android.car.systemui.presentation.QuickControlOverlay
 import com.android.car.systemui.presentation.QuickControlViewModel
 import com.android.car.systemui.presentation.SystemUiViewModel
-import com.android.car.systemui.presentation.SystemUiViewModelFactory
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -58,6 +53,8 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
     private lateinit var quickControlViewModel: QuickControlViewModel
     private var navigationView: ComposeView? = null
     private var navigationLayoutParams: WindowManager.LayoutParams? = null
+    private var overlayView: ComposeView? = null
+    private var overlayLayoutParams: WindowManager.LayoutParams? = null
     private var overlayAnimationVisible by mutableStateOf(false)
     private var overlayRemovalJob: Job? = null
 
@@ -81,56 +78,28 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
     private fun showNavigationBar() {
         if (navigationView != null) return
         val view = ownedComposeView().apply {
-            isFocusableInTouchMode = true
-            setOnKeyListener { _, keyCode, event ->
-                if (
-                    systemUiViewModel.state.value.quickControlVisible &&
-                    keyCode == KeyEvent.KEYCODE_BACK &&
-                    event.action == KeyEvent.ACTION_UP
-                ) {
-                    systemUiViewModel.dismissQuickControl()
-                    true
-                } else false
-            }
             setContent {
                 CarSystemUiTheme {
                     val systemState by systemUiViewModel.state.collectAsStateWithLifecycle()
-                    val quickControlState by quickControlViewModel.state.collectAsStateWithLifecycle()
                     val navigationHeight = dimensionResource(R.dimen.navigation_bar_height)
-                    Box(Modifier.fillMaxSize()) {
-                        QuickControlOverlay(
-                            visible = overlayAnimationVisible,
-                            state = quickControlState,
-                            onDismiss = systemUiViewModel::dismissQuickControl,
-                            onBrightnessChanged = quickControlViewModel::onBrightnessChanged,
-                            onBrightnessChangeFinished = quickControlViewModel::onBrightnessChangeFinished,
-                            onVolumeChanged = quickControlViewModel::onVolumeChanged,
-                            onTemperatureDecrease = quickControlViewModel::decreaseTemperature,
-                            onTemperatureIncrease = quickControlViewModel::increaseTemperature,
-                            onAcChanged = quickControlViewModel::setAc,
-                            modifier = Modifier.fillMaxSize().padding(bottom = navigationHeight),
-                        )
-                        BottomNavigationScreen(
-                            quickControlVisible = systemState.quickControlVisible,
-                            onHome = systemUiViewModel::goHome,
-                            onSettings = systemUiViewModel::openSettings,
-                            onAppList = systemUiViewModel::openAppList,
-                            onQuickControl = {
-                                if (!systemState.quickControlVisible) quickControlViewModel.refresh()
-                                systemUiViewModel.toggleQuickControl()
-                            },
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .height(navigationHeight),
-                        )
-                    }
+                    BottomNavigationScreen(
+                        quickControlVisible = systemState.quickControlVisible,
+                        onHome = systemUiViewModel::goHome,
+                        onAppList = systemUiViewModel::openAppList,
+                        onQuickControl = {
+                            if (!systemState.quickControlVisible) quickControlViewModel.refresh()
+                            systemUiViewModel.toggleQuickControl()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(navigationHeight),
+                    )
                 }
             }
         }
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            resources.getDimensionPixelSize(R.dimen.navigation_bar_height),
+            navigationHeightPx(),
             TYPE_NAVIGATION_BAR,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -159,45 +128,96 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
 
     private fun showQuickControlWindow() {
         overlayRemovalJob?.cancel()
-        val view = navigationView ?: return
-        val params = navigationLayoutParams ?: return
-        params.height = WindowManager.LayoutParams.MATCH_PARENT
-        params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-        params.flags = params.flags or
-            WindowManager.LayoutParams.FLAG_DIM_BEHIND or
-            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-        params.dimAmount = 0.22f
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
-            params.setBlurBehindRadius(28)
+        overlayView?.let { existing ->
+            overlayAnimationVisible = true
+            existing.requestFocus()
+            return
         }
-        windowManager.updateViewLayout(view, params)
+
+        val view = ownedComposeView().apply {
+            isFocusableInTouchMode = true
+            setOnKeyListener { _, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                    systemUiViewModel.dismissQuickControl()
+                    true
+                } else {
+                    false
+                }
+            }
+            setContent {
+                CarSystemUiTheme {
+                    val state by quickControlViewModel.state.collectAsStateWithLifecycle()
+                    QuickControlOverlay(
+                        visible = overlayAnimationVisible,
+                        state = state,
+                        onDismiss = systemUiViewModel::dismissQuickControl,
+                        onBrightnessChanged = quickControlViewModel::onBrightnessChanged,
+                        onBrightnessChangeFinished = quickControlViewModel::onBrightnessChangeFinished,
+                        onVolumeChanged = quickControlViewModel::onVolumeChanged,
+                        onTemperatureDecrease = quickControlViewModel::decreaseTemperature,
+                        onTemperatureIncrease = quickControlViewModel::increaseTemperature,
+                        onAcChanged = quickControlViewModel::setAc,
+                        onSettings = {
+                            systemUiViewModel.dismissQuickControl()
+                            systemUiViewModel.openSettings()
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            overlayHeightPx(),
+            TYPE_NAVIGATION_BAR_PANEL,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_SPLIT_TOUCH or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP
+            title = "CarSystemUI Quick Control"
+        }
+        windowManager.addView(view, params)
+        overlayView = view
+        overlayLayoutParams = params
         view.requestFocus()
         overlayAnimationVisible = false
         view.post { overlayAnimationVisible = true }
     }
 
     private fun hideQuickControlWindow(animated: Boolean) {
-        val view = navigationView ?: return
-        val params = navigationLayoutParams ?: return
+        val view = overlayView ?: return
         overlayRemovalJob?.cancel()
         overlayAnimationVisible = false
         overlayRemovalJob = lifecycleScope.launch {
             if (animated) delay(OVERLAY_EXIT_DURATION_MS)
-            if (!systemUiViewModel.state.value.quickControlVisible && navigationView === view) {
-                params.height = resources.getDimensionPixelSize(R.dimen.navigation_bar_height)
-                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                params.flags = params.flags and WindowManager.LayoutParams.FLAG_DIM_BEHIND.inv()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    params.flags = params.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND.inv()
-                    params.setBlurBehindRadius(0)
-                }
-                params.dimAmount = 0f
-                windowManager.updateViewLayout(view, params)
-                view.clearFocus()
+            if (!systemUiViewModel.state.value.quickControlVisible && overlayView === view) {
+                runCatching { windowManager.removeViewImmediate(view) }
+                overlayView = null
+                overlayLayoutParams = null
             }
         }
     }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        navigationLayoutParams?.let { params ->
+            params.height = navigationHeightPx()
+            navigationView?.let { windowManager.updateViewLayout(it, params) }
+        }
+        overlayLayoutParams?.let { params ->
+            params.height = overlayHeightPx()
+            overlayView?.let { windowManager.updateViewLayout(it, params) }
+        }
+    }
+
+    private fun navigationHeightPx(): Int =
+        resources.getDimensionPixelSize(R.dimen.navigation_bar_height)
+
+    private fun overlayHeightPx(): Int =
+        (resources.displayMetrics.heightPixels - navigationHeightPx()).coerceAtLeast(1)
 
     private fun ownedComposeView(): ComposeView = ComposeView(this).also { view ->
         view.setViewTreeLifecycleOwner(this)
@@ -207,7 +227,10 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
 
     override fun onDestroy() {
         overlayRemovalJob?.cancel()
+        overlayView?.let { runCatching { windowManager.removeViewImmediate(it) } }
         navigationView?.let { runCatching { windowManager.removeViewImmediate(it) } }
+        overlayView = null
+        overlayLayoutParams = null
         navigationView = null
         navigationLayoutParams = null
         viewModelStore.clear()
@@ -218,6 +241,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
 
     private companion object {
         const val TYPE_NAVIGATION_BAR = 2019
+        const val TYPE_NAVIGATION_BAR_PANEL = 2024
         const val OVERLAY_EXIT_DURATION_MS = 220L
     }
 }

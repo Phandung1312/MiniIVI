@@ -2,6 +2,15 @@
     <string name="app_name">Mini IVI</string>
     <string name="media">Media</string>
     <string name="bluetooth">Bluetooth</string>
+    <string name="youtube">YouTube</string>
+    <string name="maps">Maps</string>
+    <string name="weather">Weather</string>
+    <string name="phone">Phone</string>
+    <string name="browser">Browser</string>
+    <string name="settings">Settings</string>
+    <string name="home_greeting">Ready for the road</string>
+    <string name="home_applications">Apps</string>
+    <string name="app_not_available">App unavailable on this device</string>
     <string name="back">Back</string>
     <string name="play">Play</string>
     <string name="pause">Pause</string>

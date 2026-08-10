@@ -2,6 +2,8 @@ package com.android.car.systemui.data.repository
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.LauncherApps
+import android.graphics.Rect
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
@@ -13,7 +15,22 @@ class AndroidNavigationRepository(
     override fun goHome() = injectKey(KeyEvent.KEYCODE_HOME)
 
     override fun openSettings() {
-        launch(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        runCatching {
+            val user = currentUserProvider.userHandle()
+            val launcherApps = currentUserProvider.context().getSystemService(LauncherApps::class.java)
+            val settingsActivity = launcherApps
+                ?.getActivityList(CAR_SETTINGS_PACKAGE, user)
+                ?.firstOrNull()
+            if (settingsActivity != null) {
+                launcherApps.startMainActivity(settingsActivity.componentName, user, Rect(), null)
+            } else {
+                currentUserProvider.context().startActivity(
+                    Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        }.onFailure { error ->
+            Log.e(TAG, "Unable to launch Settings for foreground user", error)
+        }
     }
 
     override fun openAppList() {
@@ -64,6 +81,7 @@ class AndroidNavigationRepository(
     private companion object {
         const val TAG = "CarSystemUI-Navigation"
         const val INJECT_INPUT_EVENT_MODE_ASYNC = 0
+        const val CAR_SETTINGS_PACKAGE = "com.android.car.settings"
         const val CAR_LAUNCHER_PACKAGE = "com.android.car.launcher"
         const val APP_LIST_ACTIVITY = "com.android.car.launcher.feature.dashboard.HomeActivity"
     }

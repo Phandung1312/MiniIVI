@@ -78,6 +78,11 @@ class SystemUiViewModelTest {
         viewModel.setAc(true)
         assertEquals(ClimateZone.RIGHT to 0.5f, hvac.lastAdjustment)
         assertTrue(hvac.lastAc)
+
+        viewModel.refresh()
+        assertEquals(1, brightness.refreshCount)
+        assertEquals(1, audio.refreshCount)
+        assertEquals(1, hvac.refreshCount)
     }
 }
 
@@ -92,9 +97,10 @@ private class FakeBrightnessRepository : BrightnessRepository {
     val mutable = MutableStateFlow(BrightnessState())
     override val state = mutable
     var lastValue: Float? = null
+    var refreshCount = 0
     override fun start() = Unit
     override fun stop() = Unit
-    override fun refresh() = Unit
+    override fun refresh() { refreshCount++ }
     override suspend fun setBrightness(progress: Float) { lastValue = progress }
 }
 
@@ -102,9 +108,10 @@ private class FakeAudioRepository : AudioRepository {
     val mutable = MutableStateFlow(AudioState())
     override val state = mutable
     var lastVolume = -1
+    var refreshCount = 0
     override fun start() = Unit
     override fun stop() = Unit
-    override fun refresh() = Unit
+    override fun refresh() { refreshCount++ }
     override fun setVolume(volume: Int) { lastVolume = volume }
 }
 
@@ -113,8 +120,10 @@ private class FakeHvacRepository : HvacRepository {
     override val state = mutable
     var lastAdjustment: Pair<ClimateZone, Float>? = null
     var lastAc = false
+    var refreshCount = 0
     override fun start() = Unit
     override fun stop() = Unit
+    override fun refresh() { refreshCount++ }
     override fun adjustTemperature(zone: ClimateZone, delta: Float) {
         lastAdjustment = zone to delta
     }

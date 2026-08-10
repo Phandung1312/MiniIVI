@@ -25,21 +25,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.BrightnessHigh
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -80,7 +75,6 @@ import kotlin.math.roundToInt
 fun BottomNavigationScreen(
     quickControlVisible: Boolean,
     onHome: () -> Unit,
-    onSettings: () -> Unit,
     onAppList: () -> Unit,
     onQuickControl: () -> Unit,
     modifier: Modifier = Modifier,
@@ -102,25 +96,19 @@ fun BottomNavigationScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 NavigationButton(
-                    Icons.Rounded.Home,
+                    MiniIviNavigationIcons.Home,
                     R.string.navigation_home,
                     buttonSize,
                     onClick = onHome,
                 )
                 NavigationButton(
-                    Icons.Rounded.Settings,
-                    R.string.navigation_settings,
-                    buttonSize,
-                    onClick = onSettings,
-                )
-                NavigationButton(
-                    Icons.Rounded.Apps,
+                    MiniIviNavigationIcons.Apps,
                     R.string.navigation_app_list,
                     buttonSize,
                     onClick = onAppList,
                 )
                 NavigationButton(
-                    Icons.Rounded.Tune,
+                    MiniIviNavigationIcons.QuickControls,
                     R.string.navigation_control_center,
                     buttonSize,
                     selected = quickControlVisible,
@@ -152,7 +140,7 @@ private fun NavigationButton(
                 imageVector = icon,
                 contentDescription = stringResource(description),
                 tint = if (selected) MaterialTheme.colorScheme.primary else Color.White,
-                modifier = Modifier.size(size * 0.5f),
+                modifier = Modifier.size(size * 0.68f),
             )
         }
     }
@@ -169,6 +157,7 @@ fun QuickControlOverlay(
     onTemperatureDecrease: (ClimateZone) -> Unit,
     onTemperatureIncrease: (ClimateZone) -> Unit,
     onAcChanged: (Boolean) -> Unit,
+    onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
@@ -182,17 +171,16 @@ fun QuickControlOverlay(
                 .background(Color.Black.copy(alpha = 0.46f))
                 .clickable(onClick = onDismiss),
         ) {
-            val wide = maxWidth >= 840.dp
             AnimatedVisibility(
                 visible = visible,
-                modifier = Modifier.align(if (wide) Alignment.CenterEnd else Alignment.Center),
+                modifier = Modifier.align(Alignment.Center),
                 enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.96f),
                 exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.96f),
             ) {
                 Surface(
                     modifier = Modifier
-                        .then(if (wide) Modifier.width(560.dp) else Modifier.fillMaxWidth())
-                        .fillMaxHeight(if (wide) 0.90f else 0.94f)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.94f)
                         .padding(20.dp)
                         .clickable(enabled = true, onClick = {}),
                     shape = RoundedCornerShape(36.dp),
@@ -209,6 +197,7 @@ fun QuickControlOverlay(
                         onTemperatureDecrease = onTemperatureDecrease,
                         onTemperatureIncrease = onTemperatureIncrease,
                         onAcChanged = onAcChanged,
+                        onSettings = onSettings,
                     )
                 }
             }
@@ -226,63 +215,121 @@ private fun QuickControlContent(
     onTemperatureDecrease: (ClimateZone) -> Unit,
     onTemperatureIncrease: (ClimateZone) -> Unit,
     onAcChanged: (Boolean) -> Unit,
+    onSettings: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.control_center_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = onDismiss, modifier = Modifier.size(56.dp)) {
-                Icon(Icons.Rounded.Close, stringResource(R.string.control_close))
-            }
-        }
-        Spacer(Modifier.height(20.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
-        ) {
-            VerticalControl(
-                value = state.displayedBrightness,
-                enabled = state.brightness.available,
-                icon = Icons.Rounded.BrightnessHigh,
-                label = stringResource(R.string.control_brightness),
-                activeColor = Color(0xFFF7F4E8),
-                activeContentColor = Color(0xFF272A2E),
-                onValueChange = onBrightnessChanged,
-                onValueChangeFinished = onBrightnessChangeFinished,
-                modifier = Modifier.testTag("brightness_slider"),
-            )
-            VerticalControl(
-                value = state.audio.progress,
-                enabled = state.audio.available,
-                icon = Icons.AutoMirrored.Rounded.VolumeUp,
-                label = stringResource(R.string.control_volume),
-                activeColor = MaterialTheme.colorScheme.primary,
-                activeContentColor = Color.White,
-                onValueChange = onVolumeChanged,
-                modifier = Modifier.testTag("volume_slider"),
-            )
-        }
-        Spacer(Modifier.height(22.dp))
-        HvacCard(
-            state = state.hvac,
-            onTemperatureDecrease = onTemperatureDecrease,
-            onTemperatureIncrease = onTemperatureIncrease,
-            onAcChanged = onAcChanged,
-        )
-        listOfNotNull(
+    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp)) {
+        val errorMessage = listOfNotNull(
             state.brightness.errorMessage,
             state.audio.errorMessage,
             state.hvac.errorMessage,
-        ).firstOrNull()?.let { message ->
-            Spacer(Modifier.height(12.dp))
-            Text(message, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+        ).firstOrNull()
+        Column(Modifier.fillMaxSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.control_center_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onSettings, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Rounded.Settings, stringResource(R.string.navigation_settings))
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Rounded.Close, stringResource(R.string.control_close))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+                if (maxWidth >= 720.dp) {
+                    val controlBodyHeight = (maxHeight - SLIDER_LABEL_SPACE).coerceIn(140.dp, 280.dp)
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    ) {
+                        QuickControlSliders(
+                            state = state,
+                            controlBodyHeight = controlBodyHeight,
+                            onBrightnessChanged = onBrightnessChanged,
+                            onBrightnessChangeFinished = onBrightnessChangeFinished,
+                            onVolumeChanged = onVolumeChanged,
+                        )
+                        HvacCard(
+                            state = state.hvac,
+                            onTemperatureDecrease = onTemperatureDecrease,
+                            onTemperatureIncrease = onTemperatureIncrease,
+                            onAcChanged = onAcChanged,
+                            controlBodyHeight = controlBodyHeight,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                } else {
+                    val controlBodyHeight = (
+                        (maxHeight - SLIDER_LABEL_SPACE - NARROW_LAYOUT_GAP) / 2
+                        ).coerceIn(112.dp, 180.dp)
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        QuickControlSliders(
+                            state = state,
+                            controlBodyHeight = controlBodyHeight,
+                            onBrightnessChanged = onBrightnessChanged,
+                            onBrightnessChangeFinished = onBrightnessChangeFinished,
+                            onVolumeChanged = onVolumeChanged,
+                        )
+                        HvacCard(
+                            state = state.hvac,
+                            onTemperatureDecrease = onTemperatureDecrease,
+                            onTemperatureIncrease = onTemperatureIncrease,
+                            onAcChanged = onAcChanged,
+                            controlBodyHeight = controlBodyHeight,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+            errorMessage?.let { message ->
+                Spacer(Modifier.height(4.dp))
+                Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            }
         }
+    }
+}
+
+@Composable
+private fun QuickControlSliders(
+    state: QuickControlUiState,
+    controlBodyHeight: Dp,
+    onBrightnessChanged: (Float) -> Unit,
+    onBrightnessChangeFinished: () -> Unit,
+    onVolumeChanged: (Float) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally)) {
+        VerticalControl(
+            value = state.displayedBrightness,
+            enabled = state.brightness.available,
+            icon = Icons.Rounded.BrightnessHigh,
+            label = stringResource(R.string.control_brightness),
+            activeColor = Color(0xFFF7F4E8),
+            activeContentColor = Color(0xFF272A2E),
+            onValueChange = onBrightnessChanged,
+            onValueChangeFinished = onBrightnessChangeFinished,
+            controlHeight = controlBodyHeight,
+            modifier = Modifier.testTag("brightness_slider"),
+        )
+        VerticalControl(
+            value = state.audio.progress,
+            enabled = state.audio.available,
+            icon = Icons.AutoMirrored.Rounded.VolumeUp,
+            label = stringResource(R.string.control_volume),
+            activeColor = MaterialTheme.colorScheme.primary,
+            activeContentColor = Color.White,
+            onValueChange = onVolumeChanged,
+            controlHeight = controlBodyHeight,
+            modifier = Modifier.testTag("volume_slider"),
+        )
     }
 }
 
@@ -295,6 +342,7 @@ private fun VerticalControl(
     activeColor: Color,
     activeContentColor: Color,
     onValueChange: (Float) -> Unit,
+    controlHeight: Dp,
     modifier: Modifier = Modifier,
     onValueChangeFinished: () -> Unit = {},
 ) {
@@ -307,11 +355,11 @@ private fun VerticalControl(
         Box(
             modifier = modifier
                 .width(108.dp)
-                .height(250.dp)
+                .height(controlHeight)
                 .alpha(if (enabled) 1f else 0.42f)
                 .clip(RoundedCornerShape(42.dp))
-                .background(Color.White.copy(alpha = 0.12f))
-                .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(42.dp))
+                .background(CONTROL_CARD_COLOR)
+                .border(1.dp, CARD_BORDER_COLOR, RoundedCornerShape(42.dp))
                 .onSizeChanged { heightPx = it.height.coerceAtLeast(1) }
                 .semantics {
                     progressBarRangeInfo = ProgressBarRangeInfo(normalized, 0f..1f)
@@ -374,14 +422,21 @@ private fun HvacCard(
     onTemperatureDecrease: (ClimateZone) -> Unit,
     onTemperatureIncrease: (ClimateZone) -> Unit,
     onAcChanged: (Boolean) -> Unit,
+    controlBodyHeight: Dp,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color.White.copy(alpha = 0.08f),
+        modifier = modifier
+            .height(controlBodyHeight)
+            .testTag("hvac_card"),
+        color = CONTROL_CARD_COLOR,
         shape = RoundedCornerShape(28.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+        border = BorderStroke(1.dp, CARD_BORDER_COLOR),
     ) {
-        Column(Modifier.padding(20.dp)) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.AcUnit, contentDescription = null, tint = Color(0xFF62B0FF))
                 Spacer(Modifier.width(10.dp))
@@ -409,7 +464,7 @@ private fun HvacCard(
                 )
             }
             if (state.available) {
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(12.dp))
                 if (state.dualZone) {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         TemperatureControl(
@@ -449,15 +504,15 @@ private fun TemperatureControl(
     onIncrease: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier = modifier, color = Color.Black.copy(alpha = 0.18f), shape = RoundedCornerShape(22.dp)) {
+    Surface(modifier = modifier, color = INNER_CARD_COLOR, shape = RoundedCornerShape(22.dp)) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(label, color = Color.White.copy(alpha = 0.68f), fontSize = 13.sp)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             Text(formatTemperature(zone?.temperature), fontWeight = FontWeight.Bold, fontSize = 25.sp)
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ClimateButton(Icons.Rounded.Remove, R.string.temperature_decrease, zone != null, onDecrease)
                 ClimateButton(Icons.Rounded.Add, R.string.temperature_increase, zone != null, onIncrease)
@@ -469,9 +524,9 @@ private fun TemperatureControl(
 @Composable
 private fun ClimateButton(icon: ImageVector, description: Int, enabled: Boolean, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier.size(52.dp),
+        modifier = Modifier.size(44.dp),
         shape = CircleShape,
-        color = Color.White.copy(alpha = 0.10f),
+        color = BUTTON_CARD_COLOR,
         enabled = enabled,
         onClick = onClick,
     ) {
@@ -482,4 +537,11 @@ private fun ClimateButton(icon: ImageVector, description: Int, enabled: Boolean,
 }
 
 private fun formatTemperature(value: Float?): String =
-    value?.let { String.format(Locale.getDefault(), "%.1f°C", it) } ?: "--°C"
+    value?.let { String.format(Locale.getDefault(), "%.1f\u00B0C", it) } ?: "--\u00B0C"
+
+private val CONTROL_CARD_COLOR = Color.White.copy(alpha = 0.18f)
+private val INNER_CARD_COLOR = Color.White.copy(alpha = 0.10f)
+private val BUTTON_CARD_COLOR = Color.White.copy(alpha = 0.16f)
+private val CARD_BORDER_COLOR = Color.White.copy(alpha = 0.24f)
+private val SLIDER_LABEL_SPACE = 34.dp
+private val NARROW_LAYOUT_GAP = 8.dp

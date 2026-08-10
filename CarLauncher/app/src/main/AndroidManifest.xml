@@ -21,6 +21,12 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
+    <queries>
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.android.car.mapsplaceholder" />
+    </queries>
+
     <application
         android:name=".LauncherApplication"
         android:allowBackup="false"

@@ -1,4 +1,7 @@
 import java.util.Properties
+import java.io.File
+import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.jvm.tasks.Jar
 
 plugins {
     alias(libs.plugins.android.application)
@@ -80,6 +83,7 @@ dependencies {
     // Put ROM/AOSP build stubs in app/libs/framework. They are compile-time only;
     // the corresponding classes are supplied by the system image at runtime.
     compileOnly(fileTree("libs/framework") { include("*.jar") })
+    implementation(files("libs/framework/miniivi-framework-adapter.jar"))
 
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -105,4 +109,56 @@ dependencies {
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
+}
+
+// The public SDK omits a few SystemUI-only APIs. Build a tiny compile-only JAR that
+// declares only the methods this module calls; Android provides their implementation
+// from framework.jar at runtime.
+val frameworkStubsSource = layout.projectDirectory.dir("framework-stubs/src/main/java")
+val frameworkStubsClasses = layout.buildDirectory.dir("framework-stubs/classes")
+val frameworkStubsJar = layout.projectDirectory.file("libs/framework/miniivi-framework-stubs.jar")
+val frameworkAdapterSource = layout.projectDirectory.dir("framework-adapter/src/main/java")
+val frameworkAdapterClasses = layout.buildDirectory.dir("framework-adapter/classes")
+val frameworkAdapterJar = layout.projectDirectory.file("libs/framework/miniivi-framework-adapter.jar")
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").inputStream().use(::load)
+}
+val androidJar = File(
+    localProperties.getProperty("sdk.dir") ?: error("sdk.dir is required to compile framework stubs"),
+    "platforms/android-36.1/android.jar",
+)
+
+val compileFrameworkStubs by tasks.registering(JavaCompile::class) {
+    source = fileTree(frameworkStubsSource.asFile)
+    classpath = files(androidJar)
+    destinationDirectory.set(frameworkStubsClasses)
+    sourceCompatibility = JavaVersion.VERSION_11.toString()
+    targetCompatibility = JavaVersion.VERSION_11.toString()
+}
+
+val packageFrameworkStubs by tasks.registering(Jar::class) {
+    dependsOn(compileFrameworkStubs)
+    from(frameworkStubsClasses)
+    destinationDirectory.set(frameworkStubsJar.asFile.parentFile)
+    archiveFileName.set(frameworkStubsJar.asFile.name)
+}
+
+val compileFrameworkAdapter by tasks.registering(JavaCompile::class) {
+    dependsOn(packageFrameworkStubs)
+    source = fileTree(frameworkAdapterSource.asFile)
+    classpath = files(frameworkStubsJar, androidJar)
+    destinationDirectory.set(frameworkAdapterClasses)
+    sourceCompatibility = JavaVersion.VERSION_11.toString()
+    targetCompatibility = JavaVersion.VERSION_11.toString()
+}
+
+val packageFrameworkAdapter by tasks.registering(Jar::class) {
+    dependsOn(compileFrameworkAdapter)
+    from(frameworkAdapterClasses)
+    destinationDirectory.set(frameworkAdapterJar.asFile.parentFile)
+    archiveFileName.set(frameworkAdapterJar.asFile.name)
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(packageFrameworkAdapter)
 }

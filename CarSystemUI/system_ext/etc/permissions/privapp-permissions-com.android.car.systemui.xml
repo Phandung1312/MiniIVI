@@ -2,6 +2,7 @@
 <permissions>
     <privapp-permissions package="com.android.car.systemui">
         <permission name="android.car.permission.CONTROL_CAR_CLIMATE" />
+        <permission name="android.car.permission.CAR_CONTROL_AUDIO_VOLUME" />
         <permission name="android.permission.SET_WALLPAPER" />
         <permission name="android.permission.SET_WALLPAPER_COMPONENT" />
     </privapp-permissions>

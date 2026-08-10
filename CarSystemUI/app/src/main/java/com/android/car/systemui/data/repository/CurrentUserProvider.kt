@@ -1,25 +1,31 @@
 package com.android.car.systemui.data.repository
 
 import android.content.Context
-import android.os.Process
 import android.os.UserHandle
+import com.android.car.systemui.framework.FrameworkPlatformApi
 
 class CurrentUserProvider(private val applicationContext: Context) {
+    @Volatile
+    private var lastKnownUserId: Int? = null
+
     fun userId(): Int = runCatching {
-        Class.forName("android.app.ActivityManager")
-            .getMethod("getCurrentUser")
-            .invoke(null) as Int
-    }.getOrDefault(Process.myUid() / PER_USER_RANGE)
+        FrameworkPlatformApi.getCurrentUser().also { lastKnownUserId = it }
+    }.getOrElse { error ->
+        lastKnownUserId ?: throw IllegalStateException("Unable to resolve foreground user", error)
+    }
+
+    fun userHandle(): UserHandle =
+        UserHandle.getUserHandleForUid(userId() * PER_USER_RANGE)
 
     fun context(): Context = runCatching {
-        val handle = UserHandle::class.java.getMethod("of", Int::class.javaPrimitiveType)
-            .invoke(null, userId()) as UserHandle
         Context::class.java.getMethod(
             "createContextAsUser",
             UserHandle::class.java,
             Int::class.javaPrimitiveType,
-        ).invoke(applicationContext, handle, 0) as Context
-    }.getOrDefault(applicationContext)
+        ).invoke(applicationContext, userHandle(), 0) as Context
+    }.getOrElse { error ->
+        throw IllegalStateException("Unable to create context for foreground user ${userId()}", error)
+    }
 
     private companion object {
         const val PER_USER_RANGE = 100_000

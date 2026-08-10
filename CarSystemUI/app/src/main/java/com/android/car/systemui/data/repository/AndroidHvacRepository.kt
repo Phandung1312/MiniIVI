@@ -69,8 +69,6 @@ class AndroidHvacRepository(private val context: Context) : HvacRepository {
             cabinArea = currentConfig?.let(::getAreaIds)?.firstOrNull()
             acArea = acConfig?.let(::getAreaIds)?.firstOrNull()
 
-            createAndRegisterCallback(currentConfig != null, acConfig != null)
-
             val leftZone = TemperatureZone(
                 areaId = leftArea,
                 temperature = readFloat(HVAC_TEMPERATURE_SET, leftArea),
@@ -94,6 +92,7 @@ class AndroidHvacRepository(private val context: Context) : HvacRepository {
                 acAvailable = acArea != null,
                 acOn = acArea?.let { readBoolean(HVAC_AC_ON, it) } ?: false,
             )
+            createAndRegisterCallback(currentConfig != null, acConfig != null)
         }.onFailure { error ->
             Log.e(TAG, "Cannot connect to AAOS climate properties", error)
             disconnectBlocking()
@@ -157,13 +156,26 @@ class AndroidHvacRepository(private val context: Context) : HvacRepository {
             Int::class.javaPrimitiveType,
             Float::class.javaPrimitiveType,
         )
-        if (hasCabin) register.invoke(manager, propertyCallback, HVAC_TEMPERATURE_CURRENT, RATE_ONCHANGE)
-        register.invoke(manager, propertyCallback, HVAC_TEMPERATURE_SET, RATE_ONCHANGE)
-        if (hasAc) register.invoke(manager, propertyCallback, HVAC_AC_ON, RATE_ONCHANGE)
+        fun registerProperty(propertyId: Int) {
+            val registered = register.invoke(
+                manager,
+                propertyCallback,
+                propertyId,
+                RATE_ONCHANGE,
+            ) as? Boolean ?: true
+            check(registered) { "Cannot register HVAC property 0x${propertyId.toString(16)}" }
+        }
+        if (hasCabin) registerProperty(HVAC_TEMPERATURE_CURRENT)
+        registerProperty(HVAC_TEMPERATURE_SET)
+        if (hasAc) registerProperty(HVAC_AC_ON)
     }
 
     private fun handlePropertyValue(value: Any) {
         runCatching {
+            val status = runCatching {
+                value.javaClass.getMethod("getStatus").invoke(value) as Int
+            }.getOrDefault(STATUS_AVAILABLE)
+            if (status != STATUS_AVAILABLE) return
             val propertyId = value.javaClass.getMethod("getPropertyId").invoke(value) as Int
             val areaId = value.javaClass.getMethod("getAreaId").invoke(value) as Int
             val data = value.javaClass.getMethod("getValue").invoke(value)
@@ -198,6 +210,30 @@ class AndroidHvacRepository(private val context: Context) : HvacRepository {
         propertyManager?.javaClass
             ?.getMethod("getBooleanProperty", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
             ?.invoke(propertyManager, propertyId, areaId) as Boolean
+
+    override fun refresh() {
+        scope.launch {
+            val current = mutableState.value
+            if (!current.available || propertyManager == null) return@launch
+            runCatching {
+                current.copy(
+                    cabinTemperature = cabinArea?.let { readFloat(HVAC_TEMPERATURE_CURRENT, it) },
+                    leftZone = current.leftZone?.let {
+                        it.copy(temperature = readFloat(HVAC_TEMPERATURE_SET, it.areaId))
+                    },
+                    rightZone = current.rightZone?.let {
+                        it.copy(temperature = readFloat(HVAC_TEMPERATURE_SET, it.areaId))
+                    },
+                    acOn = acArea?.let { readBoolean(HVAC_AC_ON, it) } ?: current.acOn,
+                    errorMessage = null,
+                )
+            }.onSuccess { mutableState.value = it }
+                .onFailure { error ->
+                    Log.w(TAG, "Cannot refresh HVAC state", error)
+                    mutableState.update { it.copy(errorMessage = error.message) }
+                }
+        }
+    }
 
     override fun adjustTemperature(zone: ClimateZone, delta: Float) {
         val current = mutableState.value
@@ -279,6 +315,7 @@ class AndroidHvacRepository(private val context: Context) : HvacRepository {
         const val TAG = "CarSystemUI-HVAC"
         const val PROPERTY_SERVICE = "property"
         const val RATE_ONCHANGE = 0f
+        const val STATUS_AVAILABLE = 0
         const val HVAC_TEMPERATURE_CURRENT = 0x15600502
         const val HVAC_TEMPERATURE_SET = 0x15600503
         const val HVAC_AC_ON = 0x15200505

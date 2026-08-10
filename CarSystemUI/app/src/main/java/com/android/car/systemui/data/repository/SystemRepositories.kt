@@ -27,6 +27,7 @@ interface HvacRepository {
     val state: StateFlow<HvacState>
     fun start()
     fun stop()
+    fun refresh()
     fun adjustTemperature(zone: ClimateZone, delta: Float)
     fun setAc(enabled: Boolean)
 }

@@ -95,6 +95,7 @@ class QuickControlViewModel(
     fun refresh() {
         brightnessRepository.refresh()
         audioRepository.refresh()
+        hvacRepository.refresh()
     }
 
     fun onBrightnessChanged(progress: Float) {
