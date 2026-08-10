@@ -3,7 +3,7 @@ package android.hardware.display;
 import android.os.Handler;
 import android.view.Display;
 
-/** Compile-only declaration for the SystemUI brightness APIs supplied at runtime. */
+/** Compile-only declarations for display APIs supplied by the system image. */
 public final class DisplayManager {
     public interface DisplayListener {
         void onDisplayAdded(int displayId);

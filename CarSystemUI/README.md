@@ -39,7 +39,7 @@ Prefer JARs produced by the AOSP build, for example the relevant output from:
 - `framework-res`/platform APIs
 - `SystemUI-core`
 - `car-system-ui-lib`
-- `android.car`
+- the platform current-user API used by navigation
 
 Exact output paths vary by Android branch. Use artifacts from `out/soong/.intermediates`
 or your product SDK rather than random online JARs. Files pulled from `/system/framework`
@@ -79,11 +79,13 @@ dependency container supplies platform repositories to AndroidX ViewModels,
 while `BottomNavigationService` only owns the navigation and overlay windows.
 
 The rightmost navigation action opens Quick Control. It provides manual display
-brightness, media-stream volume, dual-zone HVAC temperature and A/C controls.
-Brightness and volume use public Android APIs. HVAC is isolated behind a
-reflection-based AAOS adapter so the application can still compile when the ROM
-framework JARs are not checked into this repository.
+brightness, media volume, dual-zone HVAC temperature, and A/C controls. These
+features are supplied by the separately deployed MiniIVI Car Service through the
+shared typed AIDL client. CarSystemUI no longer opens its own `android.car`
+connection or owns car-control permissions.
 
-HVAC capability and range information is read from the target VHAL at runtime.
-Final validation must therefore be performed on the target AAOS build; a host
-build cannot verify vehicle property area IDs or vendor permission policy.
+The service reads HVAC capability and range information from the target VHAL at
+runtime. Final validation must therefore be performed on the target AAOS build;
+a host build cannot verify vehicle property area IDs or vendor permission
+policy. If the service is unavailable, Quick Control keeps rendering and marks
+the affected controls unavailable while the client retries the binding.
