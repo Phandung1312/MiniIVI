@@ -1,8 +1,7 @@
 package com.android.car.launcher.feature.dashboard.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,19 +16,26 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Map
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,22 +44,35 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.android.car.launcher.R
-import com.android.car.launcher.core.ui.WallpaperBackground
+import com.android.car.launcher.core.ui.MiniIviCard
+import com.android.car.launcher.core.ui.MiniIviColors
+import com.android.car.launcher.core.ui.MiniIviScaffold
+import com.android.car.launcher.feature.dashboard.DashboardUiState
 import com.android.car.launcher.feature.dashboard.HomeApp
 import com.android.car.launcher.feature.dashboard.HomeAppIcon
+import com.android.car.launcher.feature.dashboard.HomeDestination
+import com.android.car.launcher.feature.media.MediaState
+import com.miniivi.car.api.FeatureStatus
+import com.miniivi.car.api.HvacState
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -61,191 +80,546 @@ import kotlinx.coroutines.delay
 
 @Composable
 internal fun HomeScreen(
+    destination: HomeDestination,
+    state: DashboardUiState,
+    apps: List<HomeApp>,
+    onBackToHome: () -> Unit,
+    onAppClick: (HomeApp) -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+) {
+    MiniIviScaffold {
+        when (destination) {
+            HomeDestination.Home -> Dashboard(
+                state = state,
+                apps = apps,
+                onAppClick = onAppClick,
+                onPlayPause = onPlayPause,
+                onNext = onNext,
+                onPrevious = onPrevious,
+            )
+            HomeDestination.Apps -> AppDrawer(
+                apps = apps,
+                onBack = onBackToHome,
+                onAppClick = onAppClick,
+            )
+        }
+    }
+}
+
+@Composable
+private fun Dashboard(
+    state: DashboardUiState,
     apps: List<HomeApp>,
     onAppClick: (HomeApp) -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
 ) {
-    WallpaperBackground {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color(0x8A070A12), Color(0xD90A0C12)),
-                    ),
-                ),
-        ) {
-            BoxWithConstraints(
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                val isWide = maxWidth > maxHeight
-                val horizontalPadding = if (maxWidth >= 900.dp) 48.dp else 24.dp
-                val heroHeight = when {
-                    maxHeight < 700.dp -> 260.dp
-                    isWide -> 340.dp
-                    else -> 360.dp
-                }
-                val gridHeight = when {
-                    maxHeight < 700.dp -> 250.dp
-                    isWide -> 280.dp
-                    else -> 400.dp
-                }
-                val tileWidth = if (maxWidth >= 900.dp) 196.dp else 164.dp
+    val clock = rememberHomeClock()
+    val weatherApp = apps.first { it.id == "weather" }
+    val mapsApp = apps.first { it.id == "maps" }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = horizontalPadding, vertical = 16.dp),
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 22.dp),
+    ) {
+        DashboardHeader(clock)
+        Spacer(Modifier.height(18.dp))
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val compact = maxWidth < 1_400.dp
+            val contentWidth = if (compact) 0.72f else 0.70f
+            val gap = if (compact) 14.dp else 18.dp
+            val topRowHeight = when {
+                maxHeight < 520.dp -> 164.dp
+                compact -> 184.dp
+                else -> 220.dp
+            }
+
+            DashboardVehicleBackground(
+                hvac = state.hvac,
+                compact = compact,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(contentWidth),
+                verticalArrangement = Arrangement.spacedBy(gap),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(topRowHeight),
+                    horizontalArrangement = Arrangement.spacedBy(gap),
                 ) {
-                    HomeHero(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(heroHeight),
-                        largeClock = isWide,
+                    WeatherCard(
+                        modifier = Modifier.weight(0.78f).fillMaxHeight(),
+                        onClick = { onAppClick(weatherApp) },
                     )
-                    Spacer(Modifier.height(20.dp))
-                    Text(
-                        text = stringResource(R.string.home_applications),
-                        color = Color.White,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
+                    MediaCard(
+                        state = state.media,
+                        modifier = Modifier.weight(1.22f).fillMaxHeight(),
+                        onClick = { onAppClick(apps.first { it.id == "media" }) },
+                        onPlayPause = onPlayPause,
+                        onNext = onNext,
+                        onPrevious = onPrevious,
                     )
-                    Spacer(Modifier.height(12.dp))
-                    LazyHorizontalGrid(
-                        rows = GridCells.Fixed(2),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(gridHeight),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                }
+                MapCard(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    onClick = { onAppClick(mapsApp) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardHeader(clock: HomeClock) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.home_greeting),
+                color = MiniIviColors.TextPrimary,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.dashboard_subtitle),
+                color = MiniIviColors.TextSecondary,
+                fontSize = 15.sp,
+            )
+        }
+        Text(
+            text = clock.date,
+            color = MiniIviColors.TextSecondary,
+            fontSize = 16.sp,
+        )
+        Spacer(Modifier.width(18.dp))
+        Text(
+            text = clock.time,
+            color = MiniIviColors.TextPrimary,
+            fontSize = 38.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+private fun WeatherCard(modifier: Modifier, onClick: () -> Unit) {
+    MiniIviCard(modifier = modifier, onClick = onClick) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(22.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(68.dp),
+                shape = CircleShape,
+                color = MiniIviColors.Primary.copy(alpha = 0.12f),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Rounded.CloudOff,
+                        contentDescription = null,
+                        tint = MiniIviColors.Primary,
+                        modifier = Modifier.size(34.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.width(18.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.weather),
+                    color = MiniIviColors.TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.weather_unavailable),
+                    color = MiniIviColors.TextSecondary,
+                    fontSize = 14.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaCard(
+    state: MediaState,
+    modifier: Modifier,
+    onClick: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+) {
+    MiniIviCard(modifier = modifier, onClick = onClick) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(90.dp),
+                shape = CircleShape,
+                color = MiniIviColors.Secondary.copy(alpha = 0.42f),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Rounded.PlayCircle,
+                        contentDescription = null,
+                        tint = MiniIviColors.TextPrimary,
+                        modifier = Modifier.size(48.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.width(22.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.now_playing),
+                    color = MiniIviColors.Primary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = state.currentTrack?.title ?: stringResource(R.string.no_media_loaded),
+                    color = MiniIviColors.TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = state.currentTrack?.artist ?: stringResource(R.string.media_unavailable),
+                    color = MiniIviColors.TextSecondary,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            PlaybackIcon(Icons.Rounded.SkipPrevious, R.string.previous, state.tracks.isNotEmpty(), onPrevious)
+            PlaybackIcon(
+                if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                if (state.isPlaying) R.string.pause else R.string.play,
+                state.tracks.isNotEmpty() && !state.isPreparing,
+                onPlayPause,
+                primary = true,
+            )
+            PlaybackIcon(Icons.Rounded.SkipNext, R.string.next, state.tracks.isNotEmpty(), onNext)
+        }
+    }
+}
+
+@Composable
+private fun PlaybackIcon(
+    icon: ImageVector,
+    description: Int,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    primary: Boolean = false,
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(56.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(if (primary) 48.dp else 40.dp),
+            shape = CircleShape,
+            color = if (primary) MiniIviColors.Primary else Color.Transparent,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    icon,
+                    contentDescription = stringResource(description),
+                    tint = if (primary) Color.White else MiniIviColors.TextPrimary,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapCard(modifier: Modifier, onClick: () -> Unit) {
+    MiniIviCard(modifier = modifier, onClick = onClick) {
+        Box(Modifier.fillMaxSize().padding(24.dp)) {
+            Column(Modifier.align(Alignment.TopStart)) {
+                Text(
+                    text = stringResource(R.string.navigation_preview),
+                    color = MiniIviColors.TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.open_maps),
+                    color = MiniIviColors.TextSecondary,
+                    fontSize = 14.sp,
+                )
+            }
+            Canvas(Modifier.fillMaxSize().padding(top = 46.dp, start = 24.dp, end = 18.dp)) {
+                val route = Path().apply {
+                    moveTo(size.width * 0.06f, size.height * 0.76f)
+                    cubicTo(
+                        size.width * 0.30f,
+                        size.height * 0.18f,
+                        size.width * 0.48f,
+                        size.height * 0.88f,
+                        size.width * 0.70f,
+                        size.height * 0.40f,
+                    )
+                    cubicTo(
+                        size.width * 0.80f,
+                        size.height * 0.18f,
+                        size.width * 0.88f,
+                        size.height * 0.32f,
+                        size.width * 0.94f,
+                        size.height * 0.10f,
+                    )
+                }
+                drawPath(
+                    route,
+                    brush = Brush.linearGradient(
+                        listOf(MiniIviColors.Primary, MiniIviColors.Secondary),
+                    ),
+                    style = Stroke(width = 10.dp.toPx(), cap = StrokeCap.Round),
+                )
+                drawCircle(
+                    color = MiniIviColors.Primary,
+                    radius = 10.dp.toPx(),
+                    center = Offset(size.width * 0.06f, size.height * 0.76f),
+                )
+                drawCircle(
+                    color = MiniIviColors.Secondary,
+                    radius = 12.dp.toPx(),
+                    center = Offset(size.width * 0.94f, size.height * 0.10f),
+                )
+            }
+            Icon(
+                Icons.Rounded.Map,
+                contentDescription = null,
+                tint = MiniIviColors.Primary,
+                modifier = Modifier.align(Alignment.TopEnd).size(34.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardVehicleBackground(
+    hvac: HvacState,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val status = vehicleStatus(hvac)
+    val cabinTemperature = cabinTemperature(hvac)
+    val acStatus = when {
+        hvac.status == FeatureStatus.CONNECTING -> stringResource(R.string.vehicle_climate_connecting)
+        hvac.available && hvac.acAvailable && hvac.acOn -> stringResource(R.string.ac_on)
+        hvac.available && hvac.acAvailable -> stringResource(R.string.ac_off)
+        else -> stringResource(R.string.hvac_unavailable)
+    }
+    val vehicleWidth = 0.24f
+    val vehicleHeight = if (compact) 0.48f else 0.52f
+
+    Box(modifier) {
+        DashboardRouteDecoration(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .fillMaxWidth(0.42f)
+                .fillMaxHeight(0.60f)
+                .padding(end = 8.dp, bottom = 8.dp),
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .fillMaxWidth(vehicleWidth)
+                .fillMaxHeight(vehicleHeight)
+                .padding(end = 12.dp, bottom = 12.dp)
+                .testTag("vehicle_background")
+                .semantics {
+                    contentDescription = "$status, $cabinTemperature, $acStatus"
+                },
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Rounded.DirectionsCar,
+                    contentDescription = null,
+                    tint = MiniIviColors.Primary,
+                    modifier = Modifier.size(28.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = stringResource(R.string.vehicle_status),
+                    color = MiniIviColors.TextPrimary,
+                    fontSize = if (compact) 15.sp else 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = status,
+                color = MiniIviColors.TextSecondary,
+                fontSize = if (compact) 11.sp else 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = cabinTemperature,
+                    color = MiniIviColors.TextPrimary,
+                    fontSize = if (compact) 21.sp else 26.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = acStatus,
+                    color = MiniIviColors.TextSecondary,
+                    fontSize = if (compact) 10.sp else 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 5.dp),
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Image(
+                painter = painterResource(R.drawable.home_vehicle_premium),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.55f)
+                    .align(Alignment.End),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DashboardRouteDecoration(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val route = Path().apply {
+            moveTo(size.width * 0.48f, size.height * 0.88f)
+            cubicTo(
+                size.width * 0.62f,
+                size.height * 0.64f,
+                size.width * 0.70f,
+                size.height * 0.98f,
+                size.width * 0.84f,
+                size.height * 0.62f,
+            )
+            cubicTo(
+                size.width * 0.90f,
+                size.height * 0.45f,
+                size.width * 0.94f,
+                size.height * 0.60f,
+                size.width * 0.98f,
+                size.height * 0.30f,
+            )
+        }
+        drawPath(
+            route,
+            brush = Brush.linearGradient(
+                listOf(
+                    MiniIviColors.Primary.copy(alpha = 0.14f),
+                    MiniIviColors.Secondary.copy(alpha = 0.16f),
+                ),
+            ),
+            style = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round),
+        )
+        drawCircle(
+            color = MiniIviColors.Primary.copy(alpha = 0.25f),
+            radius = 8.dp.toPx(),
+            center = Offset(size.width * 0.48f, size.height * 0.88f),
+        )
+        drawCircle(
+            color = MiniIviColors.Secondary.copy(alpha = 0.30f),
+            radius = 9.dp.toPx(),
+            center = Offset(size.width * 0.98f, size.height * 0.30f),
+        )
+    }
+}
+
+@Composable
+private fun AppDrawer(
+    apps: List<HomeApp>,
+    onBack: () -> Unit,
+    onAppClick: (HomeApp) -> Unit,
+) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                modifier = Modifier.size(56.dp),
+                shape = CircleShape,
+                color = MiniIviColors.SurfaceRaised,
+                onClick = onBack,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        tint = MiniIviColors.TextPrimary,
+                    )
+                }
+            }
+            Spacer(Modifier.width(18.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.home_applications),
+                    color = MiniIviColors.TextPrimary,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.app_drawer_subtitle),
+                    color = MiniIviColors.TextSecondary,
+                    fontSize = 15.sp,
+                )
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(180.dp),
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            items(apps, key = HomeApp::id) { app ->
+                MiniIviCard(
+                    modifier = Modifier.height(170.dp),
+                    onClick = { onAppClick(app) },
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
                     ) {
-                        items(items = apps, key = HomeApp::id) { app ->
-                            HomeAppTile(
-                                app = app,
-                                modifier = Modifier
-                                    .width(tileWidth)
-                                    .fillMaxHeight(),
-                                onClick = { onAppClick(app) },
-                            )
+                        Surface(
+                            modifier = Modifier.size(68.dp),
+                            shape = CircleShape,
+                            color = app.accentColor.copy(alpha = 0.16f),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                AppIcon(app.icon, app.accentColor)
+                            }
                         }
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = stringResource(app.titleRes),
+                            color = MiniIviColors.TextPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun HomeHero(
-    modifier: Modifier = Modifier,
-    largeClock: Boolean,
-) {
-    val clock = rememberHomeClock()
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(32.dp))
-            .background(Color(0xFF121925)),
-    ) {
-        Image(
-            painter = painterResource(R.drawable.home_banner_wide),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            alignment = BiasAlignment(horizontalBias = 1f, verticalBias = .75f),
-            modifier = Modifier.fillMaxSize(),
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            Color(0xC70A0D15),
-                            Color(0x7A0A0D15),
-                            Color(0x120A0D15),
-                        ),
-                    ),
-                ),
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color(0x58090D15)),
-                    ),
-                ),
-        )
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(28.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.app_name),
-                color = Color.White.copy(alpha = .78f),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.5.sp,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.home_greeting),
-                color = Color.White,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = clock.time,
-                    color = Color.White,
-                    fontSize = if (largeClock) 58.sp else 50.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-2).sp,
-                )
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    text = clock.date,
-                    color = Color.White.copy(alpha = .78f),
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(bottom = 10.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeAppTile(
-    app: HomeApp,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color(0xD9212731))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .background(app.accentColor.copy(alpha = .18f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            AppIcon(app.icon, app.accentColor)
-        }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = stringResource(app.titleRes),
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
@@ -256,7 +630,7 @@ private fun AppIcon(icon: HomeAppIcon, color: Color) {
         HomeAppIcon.YouTube -> Icons.Rounded.PlayCircle
         HomeAppIcon.Bluetooth -> Icons.Rounded.Bluetooth
         HomeAppIcon.Maps -> Icons.Rounded.Map
-        HomeAppIcon.Weather -> Icons.Rounded.Cloud
+        HomeAppIcon.Weather -> Icons.Rounded.CloudOff
         HomeAppIcon.Phone -> Icons.Rounded.Phone
         HomeAppIcon.Browser -> Icons.Rounded.Language
         HomeAppIcon.Settings -> Icons.Rounded.Settings
@@ -265,14 +639,25 @@ private fun AppIcon(icon: HomeAppIcon, color: Color) {
         imageVector = imageVector,
         contentDescription = null,
         tint = color,
-        modifier = Modifier.size(32.dp),
+        modifier = Modifier.size(34.dp),
     )
 }
 
-private data class HomeClock(
-    val time: String,
-    val date: String,
-)
+@Composable
+private fun vehicleStatus(hvac: HvacState): String = when {
+    hvac.status == FeatureStatus.CONNECTING -> stringResource(R.string.vehicle_climate_connecting)
+    hvac.available -> stringResource(R.string.vehicle_climate_connected)
+    else -> stringResource(R.string.vehicle_data_unavailable)
+}
+
+private fun cabinTemperature(hvac: HvacState): String =
+    if (hvac.available && hvac.hasCabinTemperature) {
+        String.format(Locale.ENGLISH, "%.1f°C", hvac.cabinTemperatureCelsius)
+    } else {
+        "--°C"
+    }
+
+private data class HomeClock(val time: String, val date: String)
 
 @Composable
 private fun rememberHomeClock(): HomeClock {
@@ -289,8 +674,5 @@ private fun rememberHomeClock(): HomeClock {
         }
     }
 
-    return HomeClock(
-        time = now.format(timeFormatter),
-        date = now.format(dateFormatter),
-    )
+    return HomeClock(now.format(timeFormatter), now.format(dateFormatter))
 }

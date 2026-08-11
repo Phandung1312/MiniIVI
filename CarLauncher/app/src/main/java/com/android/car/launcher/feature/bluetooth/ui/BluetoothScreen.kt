@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.android.car.launcher.R
+import com.android.car.launcher.core.ui.MiniIviColors
 import com.android.car.launcher.core.ui.WallpaperBackground
 import com.android.car.launcher.feature.bluetooth.model.BluetoothState
 import com.android.car.launcher.feature.bluetooth.model.DeviceInfo
@@ -73,7 +74,7 @@ internal fun BluetoothScreen(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color(0x99101620), Color(0xD90A0E14)),
+                        listOf(Color.Transparent, MiniIviColors.Primary.copy(alpha = 0.04f)),
                     ),
                 ),
         )
@@ -90,20 +91,20 @@ internal fun BluetoothScreen(
                     onClick = onBack,
                     modifier = Modifier
                         .size(56.dp)
-                        .background(Color(0xCC252C36), CircleShape)
-                        .border(1.dp, Color(0x334F8FCB), CircleShape),
+                        .background(MiniIviColors.SurfaceRaised, CircleShape)
+                        .border(1.dp, MiniIviColors.Border, CircleShape),
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         stringResource(R.string.back),
-                        tint = Color.White,
+                        tint = MiniIviColors.TextPrimary,
                         modifier = Modifier.size(28.dp),
                     )
                 }
                 Spacer(Modifier.width(18.dp))
                 Text(
                     stringResource(R.string.bluetooth),
-                    color = Color.White,
+                    color = MiniIviColors.TextPrimary,
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -182,10 +183,10 @@ private fun BluetoothContent(
             .clip(cardShape)
             .background(
                 Brush.horizontalGradient(
-                    listOf(Color(0xF22B3542), Color(0xE61C2530)),
+                    listOf(MiniIviColors.SurfaceRaised, MiniIviColors.Surface),
                 ),
             )
-            .border(1.dp, Color(0x555F9FDC), cardShape)
+            .border(1.dp, MiniIviColors.Border, cardShape)
             .heightIn(min = 116.dp)
             .padding(horizontal = 24.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -194,7 +195,8 @@ private fun BluetoothContent(
             modifier = Modifier
                 .size(68.dp)
                 .background(
-                    if (state.enabled) Color(0xFF174D78) else Color(0xFF303943),
+                    if (state.enabled) MiniIviColors.Primary.copy(alpha = 0.18f)
+                    else MiniIviColors.TextSecondary.copy(alpha = 0.12f),
                     CircleShape,
                 ),
             contentAlignment = Alignment.Center,
@@ -203,7 +205,7 @@ private fun BluetoothContent(
                 if (state.discovering) Icons.AutoMirrored.Filled.BluetoothSearching
                 else Icons.Default.Bluetooth,
                 contentDescription = null,
-                tint = if (state.enabled) Color(0xFF76C5FF) else Color(0xFF8D99A7),
+                tint = if (state.enabled) MiniIviColors.Primary else MiniIviColors.TextSecondary,
                 modifier = Modifier.size(36.dp),
             )
         }
@@ -215,7 +217,7 @@ private fun BluetoothContent(
             Text(
                 if (state.enabled) stringResource(R.string.bluetooth_on)
                 else stringResource(R.string.bluetooth_off),
-                color = Color.White,
+                color = MiniIviColors.TextPrimary,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -223,7 +225,7 @@ private fun BluetoothContent(
             Text(
                 if (state.enabled) stringResource(R.string.bluetooth_on_description)
                 else stringResource(R.string.bluetooth_off_description),
-                color = Color(0xFFADB9C7),
+                color = MiniIviColors.TextSecondary,
                 fontSize = 15.sp,
             )
         }
@@ -302,21 +304,21 @@ private fun LocalDeviceCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xE622303C), shape)
-            .border(1.dp, Color(0x555F9FDC), shape)
+            .background(MiniIviColors.Surface, shape)
+            .border(1.dp, MiniIviColors.Border, shape)
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
                 .size(52.dp)
-                .background(Color(0xFF174D78), RoundedCornerShape(16.dp)),
+                .background(MiniIviColors.Primary.copy(alpha = 0.18f), RoundedCornerShape(16.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 Icons.Default.Bluetooth,
                 contentDescription = null,
-                tint = Color(0xFF76C5FF),
+                tint = MiniIviColors.Primary,
                 modifier = Modifier.size(28.dp),
             )
         }
@@ -327,14 +329,14 @@ private fun LocalDeviceCard(
         ) {
             Text(
                 stringResource(R.string.this_device),
-                color = Color(0xFF8FD0FF),
+                color = MiniIviColors.Primary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(3.dp))
             Text(
                 name ?: stringResource(R.string.unknown_device),
-                color = Color.White,
+                color = MiniIviColors.TextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -344,7 +346,7 @@ private fun LocalDeviceCard(
             Text(
                 "${stringResource(R.string.bluetooth_address)}: " +
                     (address ?: stringResource(R.string.address_unavailable)),
-                color = Color(0xFF95A3B2),
+                color = MiniIviColors.TextSecondary,
                 fontSize = 14.sp,
             )
         }
@@ -352,7 +354,7 @@ private fun LocalDeviceCard(
             onClick = onRename,
             enabled = renameEnabled,
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF315E80)),
+            colors = ButtonDefaults.buttonColors(containerColor = MiniIviColors.Primary),
         ) {
             Icon(
                 Icons.Default.Edit,
@@ -375,19 +377,19 @@ private fun DeviceSectionTitle(title: String, count: Int) {
     ) {
         Text(
             title,
-            color = Color(0xFFE4ECF5),
+            color = MiniIviColors.TextPrimary,
             fontSize = 19.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f),
         )
         Surface(
             shape = CircleShape,
-            color = Color(0xFF283746),
-            border = BorderStroke(1.dp, Color(0x445F9FDC)),
+            color = MiniIviColors.Primary.copy(alpha = 0.12f),
+            border = BorderStroke(1.dp, MiniIviColors.Border),
         ) {
             Text(
                 count.toString(),
-                color = Color(0xFF8FD0FF),
+                color = MiniIviColors.Primary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
@@ -403,12 +405,12 @@ private fun DeviceRow(device: DeviceInfo, connected: Boolean) {
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                if (connected) Color(0xF2293942) else Color(0xE61C242D),
+                if (connected) Color(0x66E1F0E6) else MiniIviColors.Surface,
                 shape,
             )
             .border(
                 1.dp,
-                if (connected) Color(0x6677D89A) else Color(0x2E9AB4CC),
+                if (connected) Color(0xFF8CC5A0) else MiniIviColors.Border,
                 shape,
             )
             .heightIn(min = 84.dp)
@@ -419,7 +421,7 @@ private fun DeviceRow(device: DeviceInfo, connected: Boolean) {
             modifier = Modifier
                 .size(52.dp)
                 .background(
-                    if (connected) Color(0xFF214C3A) else Color(0xFF263B4D),
+                    if (connected) Color(0x66CDE6D5) else MiniIviColors.Primary.copy(alpha = 0.16f),
                     RoundedCornerShape(16.dp),
                 ),
             contentAlignment = Alignment.Center,
@@ -427,7 +429,7 @@ private fun DeviceRow(device: DeviceInfo, connected: Boolean) {
             Icon(
                 Icons.Default.Devices,
                 contentDescription = null,
-                tint = if (connected) Color(0xFF7CE0A3) else Color(0xFF76C5FF),
+                tint = if (connected) Color(0xFF39794F) else MiniIviColors.Primary,
                 modifier = Modifier.size(28.dp),
             )
         }
@@ -438,32 +440,32 @@ private fun DeviceRow(device: DeviceInfo, connected: Boolean) {
         ) {
             Text(
                 device.name ?: stringResource(R.string.unknown_device),
-                color = Color.White,
+                color = MiniIviColors.TextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(4.dp))
-            Text(device.address, color = Color(0xFF95A3B2), fontSize = 14.sp)
+            Text(device.address, color = MiniIviColors.TextSecondary, fontSize = 14.sp)
         }
         if (connected) {
             Row(
                 modifier = Modifier
-                    .background(Color(0xFF214C3A), CircleShape)
+                    .background(Color(0x66CDE6D5), CircleShape)
                     .padding(horizontal = 13.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     Icons.Default.CheckCircle,
                     contentDescription = null,
-                    tint = Color(0xFF7CE0A3),
+                    tint = Color(0xFF39794F),
                     modifier = Modifier.size(17.dp),
                 )
                 Spacer(Modifier.width(7.dp))
                 Text(
                     stringResource(R.string.connected),
-                    color = Color(0xFF91E9B3),
+                    color = Color(0xFF39794F),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -477,8 +479,8 @@ private fun EmptyDevices() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        color = Color(0x991A2129),
-        border = BorderStroke(1.dp, Color(0x269AB4CC)),
+        color = MiniIviColors.Surface.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, MiniIviColors.Border),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
@@ -487,13 +489,13 @@ private fun EmptyDevices() {
             Icon(
                 Icons.AutoMirrored.Filled.BluetoothSearching,
                 contentDescription = null,
-                tint = Color(0xFF6F7E8D),
+                tint = MiniIviColors.TextSecondary,
                 modifier = Modifier.size(26.dp),
             )
             Spacer(Modifier.width(14.dp))
             Text(
                 stringResource(R.string.no_devices),
-                color = Color(0xFF8E9AA7),
+                color = MiniIviColors.TextSecondary,
                 fontSize = 16.sp,
             )
         }
@@ -505,12 +507,12 @@ private fun StatusMessage(message: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        color = Color(0xE61C242D),
-        border = BorderStroke(1.dp, Color(0x334F8FCB)),
+        color = MiniIviColors.Surface,
+        border = BorderStroke(1.dp, MiniIviColors.Border),
     ) {
         Text(
             message,
-            color = Color(0xFFC3CFDB),
+            color = MiniIviColors.TextPrimary,
             fontSize = 19.sp,
             modifier = Modifier.padding(24.dp),
         )
@@ -530,17 +532,17 @@ private fun BluetoothActionButton(
         modifier = Modifier.height(60.dp),
         shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFF3B9EEA),
+            containerColor = MiniIviColors.Primary,
             contentColor = Color.White,
-            disabledContainerColor = Color(0xFF285E86),
-            disabledContentColor = Color(0xFFD8EEFF),
+            disabledContainerColor = MiniIviColors.Primary.copy(alpha = 0.35f),
+            disabledContentColor = Color.White.copy(alpha = 0.72f),
         ),
         contentPadding = PaddingValues(horizontal = 24.dp),
     ) {
         if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
-                color = Color(0xFFD8EEFF),
+                color = Color.White,
                 strokeWidth = 2.5.dp,
             )
             Spacer(Modifier.width(10.dp))

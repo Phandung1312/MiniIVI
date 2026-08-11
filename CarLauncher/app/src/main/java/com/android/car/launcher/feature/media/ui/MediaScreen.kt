@@ -34,6 +34,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.android.car.launcher.R
+import com.android.car.launcher.core.ui.MiniIviColors
 import com.android.car.launcher.core.ui.WallpaperBackground
 import com.android.car.launcher.feature.media.MediaState
 
@@ -91,10 +93,10 @@ internal fun PlayerScreen(
                     .clip(RoundedCornerShape(28.dp))
                     .background(
                         Brush.horizontalGradient(
-                            listOf(Color(0xF2332730), Color(0xEE1B202A)),
+                            listOf(MiniIviColors.SurfaceRaised, MiniIviColors.Surface),
                         ),
                     )
-                    .border(1.dp, Color(0x55FF8AA0), RoundedCornerShape(28.dp))
+                    .border(1.dp, MiniIviColors.Border, RoundedCornerShape(28.dp))
                     .padding(30.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -103,17 +105,17 @@ internal fun PlayerScreen(
                         .size(210.dp)
                         .background(
                             Brush.linearGradient(
-                                listOf(Color(0xFF9A4058), Color(0xFF4E2A3D)),
+                                listOf(MiniIviColors.Secondary, MiniIviColors.Primary),
                             ),
                             RoundedCornerShape(36.dp),
                         )
-                        .border(1.dp, Color(0x66FFB0BE), RoundedCornerShape(36.dp)),
+                        .border(1.dp, MiniIviColors.Border, RoundedCornerShape(36.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Default.LibraryMusic,
                         contentDescription = null,
-                        tint = Color(0xFFFFA0B1),
+                        tint = Color.White,
                         modifier = Modifier.size(104.dp),
                     )
                 }
@@ -124,7 +126,7 @@ internal fun PlayerScreen(
                 ) {
                     Text(
                         stringResource(R.string.now_playing).uppercase(),
-                        color = Color(0xFFFF91A5),
+                        color = MiniIviColors.Primary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.5.sp,
@@ -132,7 +134,7 @@ internal fun PlayerScreen(
                     Spacer(Modifier.height(12.dp))
                     Text(
                         state.currentTrack?.title.orEmpty(),
-                        color = Color.White,
+                        color = MiniIviColors.TextPrimary,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2,
@@ -142,7 +144,7 @@ internal fun PlayerScreen(
                     Spacer(Modifier.height(6.dp))
                     Text(
                         state.currentTrack?.artist.orEmpty(),
-                        color = Color(0xFFC1CAD4),
+                        color = MiniIviColors.TextSecondary,
                         fontSize = 19.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -150,7 +152,7 @@ internal fun PlayerScreen(
                     state.errorMessage?.let {
                         Text(
                             it,
-                            color = Color(0xFFFF9CAF),
+                            color = MaterialTheme.colorScheme.error,
                             fontSize = 15.sp,
                             modifier = Modifier.padding(top = 8.dp),
                         )
@@ -176,8 +178,8 @@ internal fun PlayerScreen(
                             enabled = !state.isPreparing,
                             modifier = Modifier
                                 .size(88.dp)
-                                .background(Color(0xFFFF6D82), CircleShape)
-                                .border(1.dp, Color(0x99FFC1CC), CircleShape),
+                                .background(MiniIviColors.Primary, CircleShape)
+                                .border(1.dp, MiniIviColors.Border, CircleShape),
                         ) {
                             if (state.isPreparing) {
                                 CircularProgressIndicator(
@@ -245,19 +247,19 @@ internal fun LibraryScreen(
             ) {
                 Text(
                     stringResource(R.string.all_songs),
-                    color = Color(0xFFE8EDF3),
+                    color = MiniIviColors.TextPrimary,
                     fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                 )
                 Surface(
                     shape = CircleShape,
-                    color = Color(0xFF3D2933),
-                    border = BorderStroke(1.dp, Color(0x55FF8AA0)),
+                    color = MiniIviColors.Primary.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, MiniIviColors.Border),
                 ) {
                     Text(
                         state.tracks.size.toString(),
-                        color = Color(0xFFFFA0B1),
+                        color = MiniIviColors.Primary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp),
@@ -276,12 +278,14 @@ internal fun LibraryScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
-                                if (selected) Color(0xF24B303B) else Color(0xE61C242D),
+                                if (selected) MiniIviColors.Primary.copy(alpha = 0.13f)
+                                else MiniIviColors.Surface,
                                 shape,
                             )
                             .border(
                                 1.dp,
-                                if (selected) Color(0x77FF8AA0) else Color(0x2EADBDCC),
+                                if (selected) MiniIviColors.Primary.copy(alpha = 0.45f)
+                                else MiniIviColors.Border,
                                 shape,
                             )
                             .clickable {
@@ -296,7 +300,8 @@ internal fun LibraryScreen(
                             modifier = Modifier
                                 .size(54.dp)
                                 .background(
-                                    if (selected) Color(0xFF7A3345) else Color(0xFF382A34),
+                                    if (selected) MiniIviColors.Primary.copy(alpha = 0.22f)
+                                    else MiniIviColors.Secondary.copy(alpha = 0.22f),
                                     RoundedCornerShape(16.dp),
                                 ),
                             contentAlignment = Alignment.Center,
@@ -304,7 +309,7 @@ internal fun LibraryScreen(
                             Icon(
                                 Icons.Default.LibraryMusic,
                                 contentDescription = null,
-                                tint = Color(0xFFFF91A5),
+                                tint = MiniIviColors.Primary,
                                 modifier = Modifier.size(29.dp),
                             )
                         }
@@ -315,7 +320,7 @@ internal fun LibraryScreen(
                         ) {
                             Text(
                                 track.title,
-                                color = Color.White,
+                                color = MiniIviColors.TextPrimary,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -324,7 +329,7 @@ internal fun LibraryScreen(
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 track.artist,
-                                color = Color(0xFFAEB9C5),
+                                color = MiniIviColors.TextSecondary,
                                 fontSize = 15.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -335,17 +340,17 @@ internal fun LibraryScreen(
                                 stringResource(
                                     if (state.isPlaying) R.string.playing else R.string.selected,
                                 ),
-                                color = Color(0xFFFFA0B1),
+                                color = MiniIviColors.Primary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier
-                                    .background(Color(0xFF6B3142), CircleShape)
+                                    .background(MiniIviColors.Primary.copy(alpha = 0.14f), CircleShape)
                                     .padding(horizontal = 13.dp, vertical = 8.dp),
                             )
                         } else {
                             Text(
                                 formatDuration(track.durationMillis),
-                                color = Color(0xFF8F9CAA),
+                                color = MiniIviColors.TextSecondary,
                                 fontSize = 14.sp,
                             )
                         }
@@ -371,20 +376,20 @@ private fun FeatureHeader(
             onClick = onBack,
             modifier = Modifier
                 .size(56.dp)
-                .background(Color(0xCC2D2830), CircleShape)
-                .border(1.dp, Color(0x44FF8AA0), CircleShape),
+                .background(MiniIviColors.SurfaceRaised, CircleShape)
+                .border(1.dp, MiniIviColors.Border, CircleShape),
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 stringResource(R.string.back),
-                tint = Color.White,
+                tint = MiniIviColors.TextPrimary,
                 modifier = Modifier.size(28.dp),
             )
         }
         Spacer(Modifier.width(18.dp))
         Text(
             title,
-            color = Color.White,
+            color = MiniIviColors.TextPrimary,
             fontSize = 32.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f),
@@ -410,20 +415,20 @@ private fun EmptyMediaContent(
         Box(
             modifier = Modifier
                 .size(100.dp)
-                .background(Color(0xFF4E2A3D), RoundedCornerShape(28.dp)),
+                .background(MiniIviColors.Secondary.copy(alpha = 0.24f), RoundedCornerShape(28.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 Icons.Default.LibraryMusic,
                 contentDescription = null,
-                tint = Color(0xFFFF91A5),
+                tint = MiniIviColors.Primary,
                 modifier = Modifier.size(52.dp),
             )
         }
         Spacer(Modifier.height(22.dp))
         Text(
             message,
-            color = Color(0xFFC1CAD4),
+            color = MiniIviColors.TextSecondary,
             fontSize = 19.sp,
             lineHeight = 28.sp,
             textAlign = TextAlign.Center,
@@ -439,7 +444,7 @@ private fun MediaBackdrop() {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0x991B1118), Color(0xDB0C0E14)),
+                    listOf(Color.Transparent, MiniIviColors.Primary.copy(alpha = 0.04f)),
                 ),
             ),
     )
@@ -456,8 +461,8 @@ private fun PlaybackButton(
         enabled = enabled,
         modifier = Modifier
             .size(68.dp)
-            .background(Color(0xFF332C35), CircleShape)
-            .border(1.dp, Color(0x44FF9BAC), CircleShape),
+            .background(MiniIviColors.SurfaceRaised, CircleShape)
+            .border(1.dp, MiniIviColors.Border, CircleShape),
     ) {
         icon()
     }
@@ -476,17 +481,17 @@ private fun MediaActionButton(
         modifier = Modifier.height(58.dp),
         shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFFFF6D82),
+            containerColor = MiniIviColors.Primary,
             contentColor = Color.White,
-            disabledContainerColor = Color(0xFF7A4050),
-            disabledContentColor = Color(0xFFFFD6DD),
+            disabledContainerColor = MiniIviColors.Primary.copy(alpha = 0.35f),
+            disabledContentColor = Color.White.copy(alpha = 0.72f),
         ),
         contentPadding = PaddingValues(horizontal = 24.dp),
     ) {
         if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
-                color = Color(0xFFFFD6DD),
+                color = Color.White,
                 strokeWidth = 2.5.dp,
             )
             Spacer(Modifier.width(10.dp))

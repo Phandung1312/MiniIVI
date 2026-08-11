@@ -6,30 +6,55 @@ import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
+import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.android.car.launcher.R
 import com.android.car.launcher.core.navigation.AppDestination
 import com.android.car.launcher.core.navigation.navigateTo
+import com.android.car.launcher.core.ui.MiniIviTheme
 import com.android.car.launcher.feature.dashboard.ui.HomeScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class HomeActivity : ComponentActivity() {
     private val tag = javaClass.simpleName
+    private val viewModel by viewModels<DashboardViewModel>()
+    private var destination by mutableStateOf(HomeDestination.Home)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(tag, "onCreate")
+        destination = HomeStartDestination.from(intent)
         setContent {
-            MaterialTheme {
+            MiniIviTheme {
+                val state by viewModel.state.collectAsState()
+                BackHandler(enabled = destination == HomeDestination.Apps) {
+                    destination = HomeDestination.Home
+                }
                 HomeScreen(
+                    destination = destination,
+                    state = state,
                     apps = HomeAppCatalog.apps,
+                    onBackToHome = { destination = HomeDestination.Home },
                     onAppClick = ::openApp,
+                    onPlayPause = viewModel::onPlayPause,
+                    onNext = viewModel::onNext,
+                    onPrevious = viewModel::onPrevious,
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        destination = HomeStartDestination.from(intent)
     }
 
     override fun onResume() {
@@ -87,4 +112,17 @@ class HomeActivity : ComponentActivity() {
     private fun showAppUnavailable() {
         Toast.makeText(this, R.string.app_not_available, Toast.LENGTH_SHORT).show()
     }
+}
+
+internal enum class HomeDestination { Home, Apps }
+
+internal object HomeStartDestination {
+    const val EXTRA = "com.android.car.launcher.extra.START_DESTINATION"
+    const val APPS = "apps"
+
+    fun from(intent: Intent?): HomeDestination = fromValue(intent?.getStringExtra(EXTRA))
+
+    fun fromValue(value: String?): HomeDestination =
+        if (value == APPS) HomeDestination.Apps
+        else HomeDestination.Home
 }

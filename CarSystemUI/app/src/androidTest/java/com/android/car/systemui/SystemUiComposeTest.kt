@@ -1,6 +1,7 @@
 package com.android.car.systemui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -11,8 +12,8 @@ import androidx.compose.ui.unit.dp
 import com.android.car.systemui.data.model.AudioState
 import com.android.car.systemui.data.model.BrightnessState
 import com.android.car.systemui.data.model.HvacState
-import com.android.car.systemui.presentation.BottomNavigationScreen
 import com.android.car.systemui.presentation.CarSystemUiTheme
+import com.android.car.systemui.presentation.NavigationRailScreen
 import com.android.car.systemui.presentation.QuickControlOverlay
 import com.android.car.systemui.presentation.QuickControlUiState
 import kotlin.math.abs
@@ -25,19 +26,26 @@ class SystemUiComposeTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun quickControlIsTheRightmostNavigationAction() {
+    fun navigationRailShowsBrandAndExposesSystemActions() {
         var clicked = false
         composeRule.setContent {
             CarSystemUiTheme {
-                BottomNavigationScreen(
+                NavigationRailScreen(
                     quickControlVisible = false,
                     onHome = {},
                     onAppList = {},
                     onQuickControl = { clicked = true },
+                    onSettings = {},
+                    modifier = Modifier.size(104.dp, 720.dp),
                 )
             }
         }
 
+        composeRule.onNodeWithTag("navigation_brand").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Back").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Home").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("App list").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Quick controls")
             .assertIsDisplayed()
             .performClick()

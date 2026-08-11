@@ -1,3 +1,3 @@
 <resources>
-    <dimen name="navigation_bar_height">144dp</dimen>
+    <dimen name="navigation_rail_width">104dp</dimen>
 </resources>

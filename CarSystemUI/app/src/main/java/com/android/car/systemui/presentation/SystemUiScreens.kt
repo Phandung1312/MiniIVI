@@ -57,6 +57,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
@@ -72,29 +73,31 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
-fun BottomNavigationScreen(
+fun NavigationRailScreen(
     quickControlVisible: Boolean,
     onHome: () -> Unit,
     onAppList: () -> Unit,
     onQuickControl: () -> Unit,
+    onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
-        color = Color(0xF20A0D11),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+        color = Color(0x99E8E3EF),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.76f)),
     ) {
         BoxWithConstraints {
             val buttonSize = when {
-                maxWidth < 480.dp -> 68.dp
-                maxWidth < 720.dp -> 84.dp
-                else -> 104.dp
+                maxHeight < 600.dp -> 56.dp
+                maxHeight < 760.dp -> 64.dp
+                else -> 72.dp
             }
-            Row(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly,
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                NavigationBrandMark(buttonSize)
                 NavigationButton(
                     MiniIviNavigationIcons.Home,
                     R.string.navigation_home,
@@ -107,6 +110,7 @@ fun BottomNavigationScreen(
                     buttonSize,
                     onClick = onAppList,
                 )
+                Spacer(Modifier.weight(1f))
                 NavigationButton(
                     MiniIviNavigationIcons.QuickControls,
                     R.string.navigation_control_center,
@@ -114,7 +118,36 @@ fun BottomNavigationScreen(
                     selected = quickControlVisible,
                     onClick = onQuickControl,
                 )
+                NavigationButton(
+                    Icons.Rounded.Settings,
+                    R.string.navigation_settings,
+                    buttonSize,
+                    onClick = onSettings,
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun NavigationBrandMark(size: Dp) {
+    val label = stringResource(R.string.navigation_brand)
+    Surface(
+        modifier = Modifier
+            .size(size)
+            .testTag("navigation_brand")
+            .semantics { contentDescription = label },
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.58f)),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = "MI",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = if (size >= 64.dp) 22.sp else 18.sp,
+                fontWeight = FontWeight.Black,
+            )
         }
     }
 }
@@ -127,11 +160,11 @@ private fun NavigationButton(
     selected: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val background = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
-    else Color.White.copy(alpha = 0.06f)
+    val background = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    else Color.White.copy(alpha = 0.54f)
     Surface(
         modifier = Modifier.size(size),
-        shape = CircleShape,
+        shape = RoundedCornerShape(22.dp),
         color = background,
         onClick = onClick,
     ) {
@@ -139,8 +172,8 @@ private fun NavigationButton(
             Icon(
                 imageVector = icon,
                 contentDescription = stringResource(description),
-                tint = if (selected) MaterialTheme.colorScheme.primary else Color.White,
-                modifier = Modifier.size(size * 0.68f),
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(size * 0.48f),
             )
         }
     }
@@ -168,7 +201,7 @@ fun QuickControlOverlay(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.46f))
+                .background(Color(0xFF746E7B).copy(alpha = 0.18f))
                 .clickable(onClick = onDismiss),
         ) {
             AnimatedVisibility(
@@ -183,10 +216,10 @@ fun QuickControlOverlay(
                         .fillMaxHeight(0.94f)
                         .padding(20.dp)
                         .clickable(enabled = true, onClick = {}),
-                    shape = RoundedCornerShape(36.dp),
-                    color = Color(0xE6222831),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
-                    shadowElevation = 24.dp,
+                    shape = RoundedCornerShape(28.dp),
+                    color = Color(0xB5F8F5FA),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.78f)),
+                    shadowElevation = 6.dp,
                 ) {
                     QuickControlContent(
                         state = state,
@@ -401,18 +434,24 @@ private fun VerticalControl(
                 Icon(
                     icon,
                     contentDescription = label,
-                    tint = if (normalized > 0.78f) activeContentColor else Color.White,
+                    tint = if (normalized > 0.78f) activeContentColor
+                    else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(32.dp),
                 )
                 Text(
                     text = stringResource(R.string.control_percentage, (normalized * 100).roundToInt()),
-                    color = if (normalized > 0.22f) activeContentColor else Color.White,
+                    color = if (normalized > 0.22f) activeContentColor
+                    else MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                 )
             }
         }
         Spacer(Modifier.height(10.dp))
-        Text(label, color = Color.White.copy(alpha = 0.82f), fontSize = 14.sp)
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.76f),
+            fontSize = 14.sp,
+        )
     }
 }
 
@@ -438,7 +477,11 @@ private fun HvacCard(
             verticalArrangement = Arrangement.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.AcUnit, contentDescription = null, tint = Color(0xFF62B0FF))
+                Icon(
+                    Icons.Rounded.AcUnit,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("HVAC", fontWeight = FontWeight.Bold, fontSize = 19.sp)
@@ -451,7 +494,7 @@ private fun HvacCard(
                                 formatTemperature(state.cabinTemperature),
                             )
                         },
-                        color = Color.White.copy(alpha = 0.70f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f),
                         fontSize = 13.sp,
                     )
                 }
@@ -509,7 +552,11 @@ private fun TemperatureControl(
             modifier = Modifier.padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(label, color = Color.White.copy(alpha = 0.68f), fontSize = 13.sp)
+            Text(
+                label,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f),
+                fontSize = 13.sp,
+            )
             Spacer(Modifier.height(4.dp))
             Text(formatTemperature(zone?.temperature), fontWeight = FontWeight.Bold, fontSize = 25.sp)
             Spacer(Modifier.height(6.dp))
@@ -539,9 +586,9 @@ private fun ClimateButton(icon: ImageVector, description: Int, enabled: Boolean,
 private fun formatTemperature(value: Float?): String =
     value?.let { String.format(Locale.getDefault(), "%.1f\u00B0C", it) } ?: "--\u00B0C"
 
-private val CONTROL_CARD_COLOR = Color.White.copy(alpha = 0.18f)
-private val INNER_CARD_COLOR = Color.White.copy(alpha = 0.10f)
-private val BUTTON_CARD_COLOR = Color.White.copy(alpha = 0.16f)
-private val CARD_BORDER_COLOR = Color.White.copy(alpha = 0.24f)
+private val CONTROL_CARD_COLOR = Color(0x99F4F1F7)
+private val INNER_CARD_COLOR = Color(0x80E4DFE8)
+private val BUTTON_CARD_COLOR = Color(0x8AEEEAF1)
+private val CARD_BORDER_COLOR = Color.White.copy(alpha = 0.76f)
 private val SLIDER_LABEL_SPACE = 34.dp
 private val NARROW_LAYOUT_GAP = 8.dp

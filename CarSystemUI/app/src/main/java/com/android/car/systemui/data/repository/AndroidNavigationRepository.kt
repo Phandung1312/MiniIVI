@@ -37,6 +37,7 @@ class AndroidNavigationRepository(
         launch(
             Intent(Intent.ACTION_MAIN)
                 .setClassName(CAR_LAUNCHER_PACKAGE, APP_LIST_ACTIVITY)
+                .putExtra(START_DESTINATION_EXTRA, APPS_DESTINATION)
                 .addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_CLEAR_TOP or
@@ -84,5 +85,7 @@ class AndroidNavigationRepository(
         const val CAR_SETTINGS_PACKAGE = "com.android.car.settings"
         const val CAR_LAUNCHER_PACKAGE = "com.android.car.launcher"
         const val APP_LIST_ACTIVITY = "com.android.car.launcher.feature.dashboard.HomeActivity"
+        const val START_DESTINATION_EXTRA = "com.android.car.launcher.extra.START_DESTINATION"
+        const val APPS_DESTINATION = "apps"
     }
 }

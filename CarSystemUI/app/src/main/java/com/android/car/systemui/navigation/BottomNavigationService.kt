@@ -4,13 +4,14 @@ import android.app.Service
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.PixelFormat
+import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.WindowManager
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -33,8 +34,8 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.android.car.systemui.R
 import com.android.car.systemui.di.SystemUiDependencies
-import com.android.car.systemui.presentation.BottomNavigationScreen
 import com.android.car.systemui.presentation.CarSystemUiTheme
+import com.android.car.systemui.presentation.NavigationRailScreen
 import com.android.car.systemui.presentation.QuickControlOverlay
 import com.android.car.systemui.presentation.QuickControlViewModel
 import com.android.car.systemui.presentation.SystemUiViewModel
@@ -81,8 +82,8 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
             setContent {
                 CarSystemUiTheme {
                     val systemState by systemUiViewModel.state.collectAsStateWithLifecycle()
-                    val navigationHeight = dimensionResource(R.dimen.navigation_bar_height)
-                    BottomNavigationScreen(
+                    val navigationWidth = dimensionResource(R.dimen.navigation_rail_width)
+                    NavigationRailScreen(
                         quickControlVisible = systemState.quickControlVisible,
                         onHome = systemUiViewModel::goHome,
                         onAppList = systemUiViewModel::openAppList,
@@ -90,25 +91,26 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
                             if (!systemState.quickControlVisible) quickControlViewModel.refresh()
                             systemUiViewModel.toggleQuickControl()
                         },
+                        onSettings = systemUiViewModel::openSettings,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(navigationHeight),
+                            .fillMaxHeight()
+                            .width(navigationWidth),
                     )
                 }
             }
         }
         val params = WindowManager.LayoutParams(
+            navigationWidthPx(),
             WindowManager.LayoutParams.MATCH_PARENT,
-            navigationHeightPx(),
-            TYPE_NAVIGATION_BAR,
+            TYPE_NAVIGATION_BAR_PANEL,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_SPLIT_TOUCH or
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.BOTTOM
-            title = "CarSystemUI Bottom Navigation"
+            gravity = Gravity.START
+            title = "CarSystemUI Navigation Rail"
         }
         windowManager.addView(view, params)
         navigationView = view
@@ -167,8 +169,8 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
             }
         }
         val params = WindowManager.LayoutParams(
+            overlayWidthPx(),
             WindowManager.LayoutParams.MATCH_PARENT,
-            overlayHeightPx(),
             TYPE_NAVIGATION_BAR_PANEL,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -176,7 +178,8 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.TOP
+            gravity = Gravity.START
+            x = navigationWidthPx()
             title = "CarSystemUI Quick Control"
         }
         windowManager.addView(view, params)
@@ -204,20 +207,34 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         navigationLayoutParams?.let { params ->
-            params.height = navigationHeightPx()
+            params.width = navigationWidthPx()
             navigationView?.let { windowManager.updateViewLayout(it, params) }
         }
         overlayLayoutParams?.let { params ->
-            params.height = overlayHeightPx()
+            params.width = overlayWidthPx()
+            params.x = navigationWidthPx()
             overlayView?.let { windowManager.updateViewLayout(it, params) }
         }
     }
 
-    private fun navigationHeightPx(): Int =
-        resources.getDimensionPixelSize(R.dimen.navigation_bar_height)
+    private fun navigationWidthPx(): Int =
+        resources.getDimensionPixelSize(R.dimen.navigation_rail_width)
 
-    private fun overlayHeightPx(): Int =
-        (resources.displayMetrics.heightPixels - navigationHeightPx()).coerceAtLeast(1)
+    private fun overlayWidthPx(): Int =
+        (availableDisplayWidthPx() - navigationWidthPx()).coerceAtLeast(1)
+
+    private fun availableDisplayWidthPx(): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return resources.displayMetrics.widthPixels
+        }
+        val metrics = windowManager.currentWindowMetrics
+        val cutout = metrics.windowInsets.displayCutout
+        return (
+            metrics.bounds.width() -
+                (cutout?.safeInsetLeft ?: 0) -
+                (cutout?.safeInsetRight ?: 0)
+            ).coerceAtLeast(1)
+    }
 
     private fun ownedComposeView(): ComposeView = ComposeView(this).also { view ->
         view.setViewTreeLifecycleOwner(this)
@@ -240,7 +257,6 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
     override fun onBind(intent: Intent): IBinder? = super.onBind(intent)
 
     private companion object {
-        const val TYPE_NAVIGATION_BAR = 2019
         const val TYPE_NAVIGATION_BAR_PANEL = 2024
         const val OVERLAY_EXIT_DURATION_MS = 220L
     }

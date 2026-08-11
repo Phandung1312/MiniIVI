@@ -7,7 +7,7 @@ import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.material3.MaterialTheme
+import com.android.car.launcher.core.ui.MiniIviTheme
 import com.android.car.launcher.core.lifecycle.LifeCycleLogger
 import com.android.car.launcher.feature.bluetooth.service.BluetoothMonitorService
 import com.android.car.launcher.feature.bluetooth.ui.BluetoothRoute
@@ -26,7 +26,7 @@ class BluetoothActivity : LifeCycleLogger() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            MiniIviTheme {
                 BluetoothRoute(
                     viewModel = viewModel,
                     onBack = ::finish,
