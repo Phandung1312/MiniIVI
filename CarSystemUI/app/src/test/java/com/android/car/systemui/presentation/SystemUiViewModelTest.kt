@@ -4,9 +4,11 @@ import com.android.car.systemui.data.model.AudioState
 import com.android.car.systemui.data.model.BrightnessState
 import com.android.car.systemui.data.model.ClimateZone
 import com.android.car.systemui.data.model.HvacState
+import com.android.car.systemui.data.model.ExtendedControlsState
 import com.android.car.systemui.data.repository.AudioRepository
 import com.android.car.systemui.data.repository.BrightnessRepository
 import com.android.car.systemui.data.repository.HvacRepository
+import com.android.car.systemui.data.repository.ExtendedControlsRepository
 import com.android.car.systemui.data.repository.NavigationRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -62,7 +64,7 @@ class SystemUiViewModelTest {
         val brightness = FakeBrightnessRepository()
         val audio = FakeAudioRepository()
         val hvac = FakeHvacRepository()
-        val viewModel = ControlCenterViewModel(brightness, audio, hvac)
+        val viewModel = ControlCenterViewModel(brightness, audio, hvac, FakeExtendedControlsRepository())
         brightness.mutable.value = BrightnessState(progress = 0.25f, available = true)
         audio.mutable.value = AudioState(volume = 5, minimum = 0, maximum = 10, available = true)
         hvac.mutable.value = HvacState(connecting = false, available = true)
@@ -134,4 +136,26 @@ private class FakeHvacRepository : HvacRepository {
         lastAdjustment = zone to delta
     }
     override fun setAc(enabled: Boolean) { lastAc = enabled }
+}
+
+private class FakeExtendedControlsRepository : ExtendedControlsRepository {
+    override val state = MutableStateFlow(ExtendedControlsState())
+    override fun start() = Unit
+    override fun refresh() = Unit
+    override fun setPower(enabled: Boolean) = Unit
+    override fun setAuto(enabled: Boolean) = Unit
+    override fun setSync(enabled: Boolean) = Unit
+    override fun setRecirculation(enabled: Boolean) = Unit
+    override fun setFanSpeed(zone: ClimateZone, speed: Int) = Unit
+    override fun setFanDirection(zone: ClimateZone, direction: Int) = Unit
+    override fun setDefroster(window: Int, enabled: Boolean) = Unit
+    override fun setSeatHeating(zone: ClimateZone, level: Int) = Unit
+    override fun setSeatVentilation(zone: ClimateZone, level: Int) = Unit
+    override fun setMaxAc(enabled: Boolean) = Unit
+    override fun setMaxDefrost(enabled: Boolean) = Unit
+    override fun setAutoRecirculation(enabled: Boolean) = Unit
+    override fun setSteeringWheelHeat(level: Int) = Unit
+    override fun setTemperatureUnit(unit: Int) = Unit
+    override fun setQuickControl(control: Int, enabled: Boolean) = Unit
+    override fun requestScreenOff() = Unit
 }

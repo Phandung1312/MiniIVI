@@ -192,7 +192,7 @@ private fun NavigationButton(
 }
 
 @Composable
-fun ControlCenterOverlay(
+private fun LegacyControlCenterOverlay(
     visible: Boolean,
     state: ControlCenterUiState,
     onDismiss: () -> Unit,

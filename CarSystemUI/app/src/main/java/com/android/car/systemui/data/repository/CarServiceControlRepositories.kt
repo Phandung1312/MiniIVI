@@ -4,6 +4,7 @@ import com.android.car.systemui.data.model.AudioState
 import com.android.car.systemui.data.model.BrightnessState
 import com.android.car.systemui.data.model.ClimateZone
 import com.android.car.systemui.data.model.HvacState
+import com.android.car.systemui.data.model.ExtendedControlsState
 import com.android.car.systemui.data.model.TemperatureZone
 import com.miniivi.car.api.FeatureStatus
 import com.miniivi.car.api.HvacZone
@@ -14,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
 internal object AudioLevelMapper {
@@ -21,6 +23,53 @@ internal object AudioLevelMapper {
         (minimum + progress.coerceIn(0f, 1f) * (maximum - minimum))
             .roundToInt()
             .coerceIn(minimum, maximum)
+}
+
+class CarServiceExtendedControlsRepository(
+    private val client: MiniIviCarClient,
+    scope: CoroutineScope,
+) : ExtendedControlsRepository {
+    override val state: StateFlow<ExtendedControlsState> = combine(
+        client.climateControlState,
+        client.quickControlsState,
+        ::ExtendedControlsState,
+    ).stateIn(scope, SharingStarted.Eagerly, ExtendedControlsState())
+
+    override fun start() = client.start()
+    override fun refresh() = client.start()
+    override fun setPower(enabled: Boolean) { client.setClimatePowerEnabled(enabled) }
+    override fun setAuto(enabled: Boolean) { client.setClimateAutoEnabled(enabled) }
+    override fun setSync(enabled: Boolean) { client.setClimateSyncEnabled(enabled) }
+    override fun setRecirculation(enabled: Boolean) { client.setClimateRecirculationEnabled(enabled) }
+    override fun setFanSpeed(zone: ClimateZone, speed: Int) {
+        client.setClimateFanSpeed(zone.apiZone, speed)
+    }
+    override fun setFanDirection(zone: ClimateZone, direction: Int) {
+        client.setClimateFanDirection(zone.apiZone, direction)
+    }
+    override fun setDefroster(window: Int, enabled: Boolean) {
+        client.setClimateDefrosterEnabled(window, enabled)
+    }
+    override fun setSeatHeating(zone: ClimateZone, level: Int) {
+        client.setSeatHeatingLevel(zone.apiZone, level)
+    }
+    override fun setSeatVentilation(zone: ClimateZone, level: Int) {
+        client.setSeatVentilationLevel(zone.apiZone, level)
+    }
+    override fun setMaxAc(enabled: Boolean) { client.setMaxAcEnabled(enabled) }
+    override fun setMaxDefrost(enabled: Boolean) { client.setMaxDefrostEnabled(enabled) }
+    override fun setAutoRecirculation(enabled: Boolean) {
+        client.setAutoRecirculationEnabled(enabled)
+    }
+    override fun setSteeringWheelHeat(level: Int) { client.setSteeringWheelHeatLevel(level) }
+    override fun setTemperatureUnit(unit: Int) { client.setTemperatureUnit(unit) }
+    override fun setQuickControl(control: Int, enabled: Boolean) {
+        client.setQuickControlEnabled(control, enabled)
+    }
+    override fun requestScreenOff() { client.requestScreenOff() }
+
+    private val ClimateZone.apiZone: Int
+        get() = if (this == ClimateZone.LEFT) HvacZone.LEFT else HvacZone.RIGHT
 }
 
 internal object HvacTemperaturePolicy {

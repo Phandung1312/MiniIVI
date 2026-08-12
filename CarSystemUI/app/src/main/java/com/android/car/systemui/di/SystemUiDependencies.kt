@@ -6,6 +6,7 @@ import com.android.car.systemui.data.repository.AndroidStartupRepository
 import com.android.car.systemui.data.repository.CarServiceAudioRepository
 import com.android.car.systemui.data.repository.CarServiceBrightnessRepository
 import com.android.car.systemui.data.repository.CarServiceHvacRepository
+import com.android.car.systemui.data.repository.CarServiceExtendedControlsRepository
 import com.android.car.systemui.data.repository.CurrentUserProvider
 import com.android.car.systemui.presentation.SystemUiViewModelFactory
 import com.miniivi.car.client.MiniIviCarClient
@@ -28,6 +29,7 @@ class SystemUiDependencies private constructor(context: Context) {
     private val brightnessRepository = CarServiceBrightnessRepository(carClient, processScope)
     private val audioRepository = CarServiceAudioRepository(carClient, processScope)
     private val hvacRepository = CarServiceHvacRepository(carClient, processScope)
+    private val extendedControlsRepository = CarServiceExtendedControlsRepository(carClient, processScope)
     private val navigationRepository = AndroidNavigationRepository(currentUserProvider)
 
     val startupRepository = AndroidStartupRepository()
@@ -36,6 +38,7 @@ class SystemUiDependencies private constructor(context: Context) {
         brightnessRepository,
         audioRepository,
         hvacRepository,
+        extendedControlsRepository,
     )
 
     companion object {

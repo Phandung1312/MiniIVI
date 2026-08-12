@@ -8,7 +8,12 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.android.car.systemui.data.model.AudioState
@@ -75,7 +80,7 @@ class SystemUiComposeTest {
     }
 
     @Test
-    fun controlCenterCardsUseEqualControlBodyHeightsAndEnglishDescriptions() {
+    fun controlCenterUsesCabinFlowLayoutAndEnglishDescriptions() {
         composeRule.setContent {
             CarSystemUiTheme {
                 ControlCenterOverlay(
@@ -99,16 +104,53 @@ class SystemUiComposeTest {
         }
 
         composeRule.onNodeWithContentDescription("Brightness").assertIsDisplayed()
-        composeRule.onNodeWithText("Control Center").assertIsDisplayed()
+        composeRule.onNodeWithText("Climate & Controls").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
-        val brightnessHeight = composeRule.onNodeWithTag("brightness_slider", useUnmergedTree = true)
-            .fetchSemanticsNode().boundsInRoot.height
-        val volumeHeight = composeRule.onNodeWithTag("volume_slider", useUnmergedTree = true)
-            .fetchSemanticsNode().boundsInRoot.height
-        val hvacHeight = composeRule.onNodeWithTag("hvac_card", useUnmergedTree = true)
-            .fetchSemanticsNode().boundsInRoot.height
+        composeRule.onNodeWithContentDescription("Cabin airflow").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Camera").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Screen Off").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Camera")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+    }
 
-        assertTrue(abs(brightnessHeight - volumeHeight) <= 1f)
-        assertTrue(abs(brightnessHeight - hvacHeight) <= 1f)
+    @Test
+    fun moreClimateAndMockCameraFlowsAreRenderedInTheOverlayWindow() {
+        var showMore by mutableStateOf(false)
+        var showCamera by mutableStateOf(false)
+        composeRule.setContent {
+            CarSystemUiTheme {
+                ControlCenterOverlay(
+                    visible = true,
+                    state = ControlCenterUiState(
+                        brightness = BrightnessState(available = true),
+                        audio = AudioState(volume = 5, maximum = 10, available = true),
+                        hvac = HvacState(available = false, connecting = false),
+                        moreClimateVisible = showMore,
+                        cameraVisible = showCamera,
+                    ),
+                    onDismiss = {},
+                    onBrightnessChanged = {},
+                    onBrightnessChangeFinished = {},
+                    onVolumeChanged = {},
+                    onTemperatureDecrease = {},
+                    onTemperatureIncrease = {},
+                    onAcChanged = {},
+                    onSettings = {},
+                    onShowMoreClimate = { showMore = true },
+                    onShowCamera = { showCamera = true },
+                    modifier = Modifier.size(1920.dp, 1080.dp),
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("More climate").performClick()
+        composeRule.onNodeWithText("More Climate").assertIsDisplayed()
+        composeRule.onNodeWithText("Temperature units").assertIsDisplayed()
+
+        showMore = false
+        showCamera = true
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription("Mock 360 degree camera view").assertIsDisplayed()
     }
 }

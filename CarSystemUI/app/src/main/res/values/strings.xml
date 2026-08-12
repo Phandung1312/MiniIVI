@@ -1,4 +1,8 @@
 <resources>
+    <string name="climate_controls_title">Climate &amp; Controls</string>
+    <string name="climate_driver">Driver</string>
+    <string name="climate_passenger">Passenger</string>
+    <string name="more_climate">More Climate</string>
     <string name="app_name">CarSystemUI</string>
     <string name="car_wallpaper_description">Car wallpaper</string>
     <string name="navigation_app_list">App list</string>

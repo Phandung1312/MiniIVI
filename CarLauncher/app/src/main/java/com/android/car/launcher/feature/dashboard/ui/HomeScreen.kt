@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BatteryFull
 import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.CloudOff
@@ -716,31 +716,22 @@ private fun AppDrawer(
                     )
                 }
             }
-            Spacer(Modifier.width(18.dp))
-            Column {
-                Text(
-                    text = stringResource(R.string.home_applications),
-                    color = MiniIviColors.TextPrimary,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = stringResource(R.string.app_drawer_subtitle),
-                    color = MiniIviColors.TextSecondary,
-                    fontSize = 15.sp,
-                )
-            }
         }
         Spacer(Modifier.height(24.dp))
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(180.dp),
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            columns = GridCells.Fixed(4),
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("app_drawer_grid"),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             items(apps, key = HomeApp::id) { app ->
                 MiniIviCard(
-                    modifier = Modifier.height(170.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .testTag("app_item_${app.id}"),
                     onClick = { onAppClick(app) },
                 ) {
                     Column(
@@ -748,15 +739,10 @@ private fun AppDrawer(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        Surface(
-                            modifier = Modifier.size(68.dp),
-                            shape = CircleShape,
-                            color = app.accentColor.copy(alpha = 0.16f),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                AppIcon(app.icon, app.accentColor)
-                            }
-                        }
+                        E01AppIcon(
+                            icon = app.icon,
+                            modifier = Modifier.size(120.dp),
+                        )
                         Spacer(Modifier.height(12.dp))
                         Text(
                             text = stringResource(app.titleRes),
@@ -771,26 +757,6 @@ private fun AppDrawer(
             }
         }
     }
-}
-
-@Composable
-private fun AppIcon(icon: HomeAppIcon, color: Color) {
-    val imageVector = when (icon) {
-        HomeAppIcon.Media,
-        HomeAppIcon.YouTube -> Icons.Rounded.PlayCircle
-        HomeAppIcon.Bluetooth -> Icons.Rounded.Bluetooth
-        HomeAppIcon.Maps -> Icons.Rounded.Map
-        HomeAppIcon.Weather -> Icons.Rounded.CloudOff
-        HomeAppIcon.Phone -> Icons.Rounded.Phone
-        HomeAppIcon.Browser -> Icons.Rounded.Language
-        HomeAppIcon.Settings -> Icons.Rounded.Settings
-    }
-    Icon(
-        imageVector = imageVector,
-        contentDescription = null,
-        tint = color,
-        modifier = Modifier.size(34.dp),
-    )
 }
 
 @Composable

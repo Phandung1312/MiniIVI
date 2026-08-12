@@ -1,5 +1,8 @@
 package com.android.car.systemui.data.model
 
+import com.miniivi.car.api.ClimateControlState
+import com.miniivi.car.api.QuickControlsState
+
 data class BrightnessState(
     val progress: Float = 0.5f,
     val available: Boolean = false,
@@ -41,3 +44,8 @@ data class HvacState(
 }
 
 enum class ClimateZone { LEFT, RIGHT }
+
+data class ExtendedControlsState(
+    val climate: ClimateControlState = ClimateControlState(),
+    val quickControls: QuickControlsState = QuickControlsState(),
+)
