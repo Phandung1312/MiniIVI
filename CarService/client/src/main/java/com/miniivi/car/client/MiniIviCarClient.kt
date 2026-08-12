@@ -12,14 +12,18 @@ import android.util.Log
 import com.miniivi.car.api.AudioState
 import com.miniivi.car.api.BrightnessState
 import com.miniivi.car.api.CarServiceContract
+import com.miniivi.car.api.ClimateControlState
 import com.miniivi.car.api.FeatureStatus
 import com.miniivi.car.api.HvacState
 import com.miniivi.car.api.IAudioStateListener
 import com.miniivi.car.api.IBrightnessStateListener
 import com.miniivi.car.api.IHvacStateListener
+import com.miniivi.car.api.IClimateControlStateListener
 import com.miniivi.car.api.IMiniIviCarService
+import com.miniivi.car.api.IQuickControlsStateListener
 import com.miniivi.car.api.IVehicleStatusListener
 import com.miniivi.car.api.VehicleStatusState
+import com.miniivi.car.api.QuickControlsState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,6 +43,12 @@ class MiniIviCarClient(context: Context) {
 
     private val mutableVehicleStatusState = MutableStateFlow(VehicleStatusState())
     val vehicleStatusState: StateFlow<VehicleStatusState> = mutableVehicleStatusState.asStateFlow()
+
+    private val mutableClimateControlState = MutableStateFlow(ClimateControlState())
+    val climateControlState: StateFlow<ClimateControlState> = mutableClimateControlState.asStateFlow()
+
+    private val mutableQuickControlsState = MutableStateFlow(QuickControlsState())
+    val quickControlsState: StateFlow<QuickControlsState> = mutableQuickControlsState.asStateFlow()
 
     @Volatile private var remote: IMiniIviCarService? = null
     private var started = false
@@ -70,6 +80,18 @@ class MiniIviCarClient(context: Context) {
         }
     }
 
+    private val climateControlListener = object : IClimateControlStateListener.Stub() {
+        override fun onClimateControlStateChanged(state: ClimateControlState) {
+            mutableClimateControlState.value = state
+        }
+    }
+
+    private val quickControlsListener = object : IQuickControlsStateListener.Stub() {
+        override fun onQuickControlsStateChanged(state: QuickControlsState) {
+            mutableQuickControlsState.value = state
+        }
+    }
+
     private val deathRecipient = IBinder.DeathRecipient {
         mainHandler.post { resetBindingAndRetry("Car control service binder died") }
     }
@@ -88,10 +110,14 @@ class MiniIviCarClient(context: Context) {
                 mutableAudioState.value = service.audioState
                 mutableHvacState.value = service.hvacState
                 mutableVehicleStatusState.value = service.vehicleStatusState
+                mutableClimateControlState.value = service.climateControlState
+                mutableQuickControlsState.value = service.quickControlsState
                 service.registerBrightnessListener(brightnessListener)
                 service.registerAudioListener(audioListener)
                 service.registerHvacListener(hvacListener)
                 service.registerVehicleStatusListener(vehicleStatusListener)
+                service.registerClimateControlStateListener(climateControlListener)
+                service.registerQuickControlsStateListener(quickControlsListener)
             }.onSuccess {
                 remote = service
                 retryBackoff.reset()
@@ -143,6 +169,53 @@ class MiniIviCarClient(context: Context) {
     fun setAcEnabled(enabled: Boolean): Boolean =
         sendCommand { it.setAcEnabled(enabled) }
 
+    fun setClimatePowerEnabled(enabled: Boolean): Boolean =
+        sendCommand { it.setClimatePowerEnabled(enabled) }
+
+    fun setClimateAutoEnabled(enabled: Boolean): Boolean =
+        sendCommand { it.setClimateAutoEnabled(enabled) }
+
+    fun setClimateSyncEnabled(enabled: Boolean): Boolean =
+        sendCommand { it.setClimateSyncEnabled(enabled) }
+
+    fun setClimateRecirculationEnabled(enabled: Boolean): Boolean =
+        sendCommand { it.setClimateRecirculationEnabled(enabled) }
+
+    fun setClimateFanSpeed(zone: Int, speed: Int): Boolean =
+        sendCommand { it.setClimateFanSpeed(zone, speed) }
+
+    fun setClimateFanDirection(zone: Int, direction: Int): Boolean =
+        sendCommand { it.setClimateFanDirection(zone, direction) }
+
+    fun setClimateDefrosterEnabled(window: Int, enabled: Boolean): Boolean =
+        sendCommand { it.setClimateDefrosterEnabled(window, enabled) }
+
+    fun setSeatHeatingLevel(zone: Int, level: Int): Boolean =
+        sendCommand { it.setSeatHeatingLevel(zone, level) }
+
+    fun setSeatVentilationLevel(zone: Int, level: Int): Boolean =
+        sendCommand { it.setSeatVentilationLevel(zone, level) }
+
+    fun setMaxAcEnabled(enabled: Boolean): Boolean =
+        sendCommand { it.setMaxAcEnabled(enabled) }
+
+    fun setMaxDefrostEnabled(enabled: Boolean): Boolean =
+        sendCommand { it.setMaxDefrostEnabled(enabled) }
+
+    fun setAutoRecirculationEnabled(enabled: Boolean): Boolean =
+        sendCommand { it.setAutoRecirculationEnabled(enabled) }
+
+    fun setSteeringWheelHeatLevel(level: Int): Boolean =
+        sendCommand { it.setSteeringWheelHeatLevel(level) }
+
+    fun setTemperatureUnit(unit: Int): Boolean =
+        sendCommand { it.setTemperatureUnit(unit) }
+
+    fun setQuickControlEnabled(control: Int, enabled: Boolean): Boolean =
+        sendCommand { it.setQuickControlEnabled(control, enabled) }
+
+    fun requestScreenOff(): Boolean = sendCommand { it.requestScreenOff() }
+
     private fun sendCommand(command: (IMiniIviCarService) -> Unit): Boolean {
         val service = remote ?: return false
         return runCatching { command(service) }
@@ -186,6 +259,8 @@ class MiniIviCarClient(context: Context) {
         runCatching { service.unregisterAudioListener(audioListener) }
         runCatching { service.unregisterHvacListener(hvacListener) }
         runCatching { service.unregisterVehicleStatusListener(vehicleStatusListener) }
+        runCatching { service.unregisterClimateControlStateListener(climateControlListener) }
+        runCatching { service.unregisterQuickControlsStateListener(quickControlsListener) }
     }
 
     private fun unbindSafely() {
@@ -218,6 +293,16 @@ class MiniIviCarClient(context: Context) {
             diagnosticMessage = message,
         )
         mutableVehicleStatusState.value = mutableVehicleStatusState.value.copy(
+            status = FeatureStatus.UNAVAILABLE,
+            available = false,
+            diagnosticMessage = message,
+        )
+        mutableClimateControlState.value = mutableClimateControlState.value.copy(
+            status = FeatureStatus.UNAVAILABLE,
+            available = false,
+            diagnosticMessage = message,
+        )
+        mutableQuickControlsState.value = mutableQuickControlsState.value.copy(
             status = FeatureStatus.UNAVAILABLE,
             available = false,
             diagnosticMessage = message,

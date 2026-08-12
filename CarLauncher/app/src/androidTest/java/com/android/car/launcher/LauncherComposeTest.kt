@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.junit4.ComposeTestRule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import androidx.compose.ui.unit.dp
@@ -72,9 +73,43 @@ class LauncherComposeTest {
             }
         }
 
-        composeRule.onNodeWithText("Apps").assertIsDisplayed()
         composeRule.onNodeWithText("Bluetooth").assertIsDisplayed()
+        composeRule.onNodeWithText("Video").assertIsDisplayed()
         composeRule.onNodeWithText("Settings").assertIsDisplayed()
+        composeRule.assertTextAbsent("YouTube")
+        composeRule.assertTextAbsent("Apps")
+        composeRule.assertTextAbsent("Choose an application")
+    }
+
+    @Test
+    fun appDrawerUsesFourColumns() {
+        composeRule.setContent {
+            Box(Modifier.size(1280.dp, 720.dp)) {
+                MiniIviTheme {
+                    HomeScreen(
+                        destination = HomeDestination.Apps,
+                        state = DashboardUiState(),
+                        apps = HomeAppCatalog.apps,
+                        onBackToHome = {},
+                        onAppClick = {},
+                        onPlayPause = {},
+                        onNext = {},
+                        onPrevious = {},
+                    )
+                }
+            }
+        }
+
+        val firstItem = composeRule.onNodeWithTag("app_item_media")
+            .fetchSemanticsNode().boundsInRoot
+        val fourthItem = composeRule.onNodeWithTag("app_item_browser")
+            .fetchSemanticsNode().boundsInRoot
+        val fifthItem = composeRule.onNodeWithTag("app_item_bluetooth")
+            .fetchSemanticsNode().boundsInRoot
+
+        assertEquals(firstItem.width, firstItem.height, 1f)
+        assertEquals(firstItem.top, fourthItem.top, 1f)
+        assertTrue(fifthItem.top > firstItem.top)
     }
 
     @Test
@@ -165,4 +200,14 @@ class LauncherComposeTest {
         assertTrue(imageBounds.right <= vehicleBounds.right)
         assertTrue(imageBounds.bottom <= vehicleBounds.bottom)
     }
+}
+
+private fun ComposeTestRule.assertTextAbsent(text: String) {
+    val exists = try {
+        onNodeWithText(text).fetchSemanticsNode()
+        true
+    } catch (_: AssertionError) {
+        false
+    }
+    assertTrue("Expected text '$text' to be absent", !exists)
 }
