@@ -72,13 +72,13 @@ The allowlist XML must be placed on the same partition as the privileged APK.
 After copying both files, reboot the device; Android reads privapp allowlists
 during system startup.
 
-## 4. SystemUI architecture and Quick Control
+## 4. SystemUI architecture and Control Center
 
 The runtime UI is implemented with Kotlin and Jetpack Compose. A process-scoped
 dependency container supplies platform repositories to AndroidX ViewModels,
 while `BottomNavigationService` only owns the navigation and overlay windows.
 
-The rightmost navigation action opens Quick Control. It provides manual display
+The rightmost navigation action opens Control Center. It provides manual display
 brightness, media volume, dual-zone HVAC temperature, and A/C controls. These
 features are supplied by the separately deployed MiniIVI Car Service through the
 shared typed AIDL client. CarSystemUI no longer opens its own `android.car`
@@ -87,5 +87,5 @@ connection or owns car-control permissions.
 The service reads HVAC capability and range information from the target VHAL at
 runtime. Final validation must therefore be performed on the target AAOS build;
 a host build cannot verify vehicle property area IDs or vendor permission
-policy. If the service is unavailable, Quick Control keeps rendering and marks
+policy. If the service is unavailable, Control Center keeps rendering and marks
 the affected controls unavailable while the client retries the binding.

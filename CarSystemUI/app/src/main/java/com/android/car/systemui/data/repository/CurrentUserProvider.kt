@@ -1,6 +1,7 @@
 package com.android.car.systemui.data.repository
 
 import android.content.Context
+import android.content.Intent
 import android.os.UserHandle
 import com.android.car.systemui.framework.FrameworkPlatformApi
 
@@ -25,6 +26,10 @@ class CurrentUserProvider(private val applicationContext: Context) {
         ).invoke(applicationContext, userHandle(), 0) as Context
     }.getOrElse { error ->
         throw IllegalStateException("Unable to create context for foreground user ${userId()}", error)
+    }
+
+    fun launch(intent: Intent) {
+        FrameworkPlatformApi.startActivityAsUser(applicationContext, intent, userHandle())
     }
 
     private companion object {

@@ -4,7 +4,7 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 
 object CarServiceContract {
-    const val API_VERSION = 1
+    const val API_VERSION = 2
     const val SERVICE_PACKAGE = "com.miniivi.car.service"
     const val SERVICE_CLASS = "com.miniivi.car.service.MiniIviCarService"
     const val CONTROL_PERMISSION = "com.miniivi.car.permission.CONTROL"
@@ -72,5 +72,22 @@ data class HvacState(
     val acAvailable: Boolean = false,
     val acOn: Boolean = false,
     val errorCode: Int = 0,
+    val diagnosticMessage: String? = null,
+) : Parcelable
+
+@Parcelize
+data class VehicleStatusState(
+    val status: Int = FeatureStatus.CONNECTING,
+    val available: Boolean = false,
+    val hasBatteryPercentage: Boolean = false,
+    val batteryPercentage: Float = 0f,
+    val hasOutsideTemperature: Boolean = false,
+    val outsideTemperatureCelsius: Float = 0f,
+    val hasRange: Boolean = false,
+    val rangeKilometers: Float = 0f,
+    val hasTirePressure: Boolean = false,
+    val minimumTirePressureKpa: Float = 0f,
+    val tiresHealthy: Boolean = true,
+    val errorCode: Int = CarServiceError.NONE,
     val diagnosticMessage: String? = null,
 ) : Parcelable

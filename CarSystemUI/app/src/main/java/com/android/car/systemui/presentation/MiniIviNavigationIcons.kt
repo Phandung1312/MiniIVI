@@ -57,9 +57,9 @@ internal object MiniIviNavigationIcons {
         }.build()
     }
 
-    val QuickControls: ImageVector by lazy {
+    val ControlCenter: ImageVector by lazy {
         ImageVector.Builder(
-            name = "MiniIviQuickControlsQ06",
+            name = "MiniIviControlCenterQ06",
             defaultWidth = 24.dp,
             defaultHeight = 24.dp,
             viewportWidth = 24f,

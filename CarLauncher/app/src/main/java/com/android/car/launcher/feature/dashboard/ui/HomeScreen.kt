@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,10 +20,14 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Bluetooth
+import androidx.compose.material.icons.rounded.BatteryFull
+import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.DeviceThermostat
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Map
@@ -33,6 +38,9 @@ import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Route
+import androidx.compose.material.icons.rounded.TireRepair
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -73,6 +81,7 @@ import com.android.car.launcher.feature.dashboard.HomeDestination
 import com.android.car.launcher.feature.media.MediaState
 import com.miniivi.car.api.FeatureStatus
 import com.miniivi.car.api.HvacState
+import com.miniivi.car.api.VehicleStatusState
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -128,7 +137,6 @@ private fun Dashboard(
         Spacer(Modifier.height(18.dp))
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val compact = maxWidth < 1_400.dp
-            val contentWidth = if (compact) 0.72f else 0.70f
             val gap = if (compact) 14.dp else 18.dp
             val topRowHeight = when {
                 maxHeight < 520.dp -> 164.dp
@@ -136,19 +144,16 @@ private fun Dashboard(
                 else -> 220.dp
             }
 
-            DashboardVehicleBackground(
-                hvac = state.hvac,
-                compact = compact,
-                modifier = Modifier.fillMaxSize(),
-            )
             Column(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(contentWidth),
+                    .fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(gap),
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(topRowHeight),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(topRowHeight)
+                        .testTag("dashboard_top_row"),
                     horizontalArrangement = Arrangement.spacedBy(gap),
                 ) {
                     WeatherCard(
@@ -164,10 +169,29 @@ private fun Dashboard(
                         onPrevious = onPrevious,
                     )
                 }
-                MapCard(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    onClick = { onAppClick(mapsApp) },
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .testTag("dashboard_bottom_row"),
+                    horizontalArrangement = Arrangement.spacedBy(gap),
+                ) {
+                    MapCard(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .testTag("map_card"),
+                        onClick = { onAppClick(mapsApp) },
+                    )
+                    DashboardVehicleStatus(
+                        hvac = state.hvac,
+                        vehicleStatus = state.vehicleStatus,
+                        compact = compact,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    )
+                }
             }
         }
     }
@@ -407,8 +431,9 @@ private fun MapCard(modifier: Modifier, onClick: () -> Unit) {
 }
 
 @Composable
-private fun DashboardVehicleBackground(
+private fun DashboardVehicleStatus(
     hvac: HvacState,
+    vehicleStatus: VehicleStatusState,
     compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -420,27 +445,47 @@ private fun DashboardVehicleBackground(
         hvac.available && hvac.acAvailable -> stringResource(R.string.ac_off)
         else -> stringResource(R.string.hvac_unavailable)
     }
-    val vehicleWidth = 0.24f
-    val vehicleHeight = if (compact) 0.48f else 0.52f
-
-    Box(modifier) {
+    val battery = if (vehicleStatus.available && vehicleStatus.hasBatteryPercentage) {
+        String.format(Locale.ENGLISH, "%.0f%%", vehicleStatus.batteryPercentage)
+    } else "--"
+    val outside = if (vehicleStatus.available && vehicleStatus.hasOutsideTemperature) {
+        String.format(Locale.ENGLISH, "%.1f°C", vehicleStatus.outsideTemperatureCelsius)
+    } else "--°C"
+    val range = if (vehicleStatus.available && vehicleStatus.hasRange) {
+        String.format(Locale.ENGLISH, "%.0f km", vehicleStatus.rangeKilometers)
+    } else "-- km"
+    val tires = if (vehicleStatus.available && vehicleStatus.hasTirePressure) {
+        String.format(Locale.ENGLISH, "%.0f kPa", vehicleStatus.minimumTirePressureKpa)
+    } else "-- kPa"
+    val tireHealth = if (vehicleStatus.tiresHealthy) {
+        stringResource(R.string.tires_normal)
+    } else {
+        stringResource(R.string.tires_low)
+    }
+    Box(
+        modifier = modifier
+            .testTag("vehicle_background")
+            .semantics {
+                contentDescription = "$status, $battery, $cabinTemperature, $outside, $range, $tires, $tireHealth, $acStatus"
+            },
+    ) {
         DashboardRouteDecoration(
             Modifier
-                .align(Alignment.BottomEnd)
-                .fillMaxWidth(0.42f)
-                .fillMaxHeight(0.60f)
-                .padding(end = 8.dp, bottom = 8.dp),
+                .fillMaxSize()
+                .padding(
+                    start = if (compact) 12.dp else 24.dp,
+                    top = if (compact) 12.dp else 24.dp,
+                    end = if (compact) 12.dp else 18.dp,
+                    bottom = if (compact) 8.dp else 12.dp,
+                ),
         )
         Column(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .fillMaxWidth(vehicleWidth)
-                .fillMaxHeight(vehicleHeight)
-                .padding(end = 12.dp, bottom = 12.dp)
-                .testTag("vehicle_background")
-                .semantics {
-                    contentDescription = "$status, $cabinTemperature, $acStatus"
-                },
+                .fillMaxSize()
+                .padding(
+                    horizontal = if (compact) 16.dp else 24.dp,
+                    vertical = if (compact) 16.dp else 22.dp,
+                ),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -459,7 +504,7 @@ private fun DashboardVehicleBackground(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
             Text(
                 text = status,
                 color = MiniIviColors.TextSecondary,
@@ -467,37 +512,142 @@ private fun DashboardVehicleBackground(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = cabinTemperature,
-                    color = MiniIviColors.TextPrimary,
-                    fontSize = if (compact) 21.sp else 26.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = acStatus,
-                    color = MiniIviColors.TextSecondary,
-                    fontSize = if (compact) 10.sp else 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(bottom = 5.dp),
-                )
+            Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("vehicle_metrics_panel"),
+                shape = RoundedCornerShape(if (compact) 20.dp else 26.dp),
+                color = MiniIviColors.Surface.copy(alpha = 0.58f),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MiniIviColors.Border.copy(alpha = 0.7f),
+                ),
+            ) {
+                Column(
+                    modifier = Modifier.padding(
+                        horizontal = if (compact) 10.dp else 16.dp,
+                        vertical = if (compact) 8.dp else 12.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
+                        VehicleMetricTile(
+                            icon = Icons.Rounded.BatteryFull,
+                            label = stringResource(R.string.vehicle_battery),
+                            value = battery,
+                            compact = compact,
+                            tag = "battery",
+                        )
+                        VehicleMetricTile(
+                            icon = Icons.Rounded.DeviceThermostat,
+                            label = stringResource(R.string.vehicle_cabin),
+                            value = cabinTemperature,
+                            compact = compact,
+                            tag = "cabin",
+                        )
+                        VehicleMetricTile(
+                            icon = Icons.Rounded.WbSunny,
+                            label = stringResource(R.string.vehicle_outside),
+                            value = outside,
+                            compact = compact,
+                            tag = "outside",
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
+                        VehicleMetricTile(
+                            icon = Icons.Rounded.Route,
+                            label = stringResource(R.string.vehicle_range),
+                            value = range,
+                            compact = compact,
+                            tag = "range",
+                        )
+                        VehicleMetricTile(
+                            icon = Icons.Rounded.TireRepair,
+                            label = stringResource(R.string.vehicle_tires),
+                            value = tires,
+                            supporting = tireHealth,
+                            warning = !vehicleStatus.tiresHealthy,
+                            compact = compact,
+                            tag = "tires",
+                        )
+                        VehicleMetricTile(
+                            icon = Icons.Rounded.AcUnit,
+                            label = stringResource(R.string.vehicle_climate),
+                            value = acStatus,
+                            compact = compact,
+                            tag = "climate",
+                        )
+                    }
+                }
             }
-            Spacer(Modifier.weight(1f))
             Image(
                 painter = painterResource(R.drawable.home_vehicle_premium),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.55f)
-                    .align(Alignment.End),
+                    .fillMaxWidth(if (compact) 0.92f else 0.90f)
+                    .weight(1.18f)
+                    .align(Alignment.End)
+                    .testTag("vehicle_image"),
             )
         }
     }
 }
+
+@Composable
+private fun RowScope.VehicleMetricTile(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    compact: Boolean,
+    tag: String,
+    supporting: String? = null,
+    warning: Boolean = false,
+) {
+    Row(
+        modifier = Modifier
+            .weight(1f)
+            .height(if (compact) 54.dp else 68.dp)
+            .testTag("vehicle_metric_$tag"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (warning) VehicleWarning else MiniIviColors.Primary,
+            modifier = Modifier.size(if (compact) 18.dp else 22.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = label,
+                color = MiniIviColors.TextSecondary,
+                fontSize = if (compact) 9.sp else 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = value,
+                color = MiniIviColors.TextPrimary,
+                fontSize = if (compact) 13.sp else 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            supporting?.let {
+                Text(
+                    text = it,
+                    color = if (warning) VehicleWarning else MiniIviColors.TextSecondary,
+                    fontSize = if (compact) 8.sp else 9.sp,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+private val VehicleWarning = Color(0xFFC35B6E)
 
 @Composable
 private fun DashboardRouteDecoration(modifier: Modifier = Modifier) {

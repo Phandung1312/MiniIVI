@@ -23,9 +23,9 @@ import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class SystemUiState(val quickControlVisible: Boolean = false)
+data class SystemUiState(val controlCenterVisible: Boolean = false)
 
-data class QuickControlUiState(
+data class ControlCenterUiState(
     val brightness: BrightnessState = BrightnessState(),
     val audio: AudioState = AudioState(),
     val hvac: HvacState = HvacState(),
@@ -41,23 +41,34 @@ class SystemUiViewModel(
     private val mutableState = MutableStateFlow(SystemUiState())
     val state = mutableState.asStateFlow()
 
-    fun toggleQuickControl() {
+    fun toggleControlCenter() {
         mutableState.value = mutableState.value.copy(
-            quickControlVisible = !mutableState.value.quickControlVisible,
+            controlCenterVisible = !mutableState.value.controlCenterVisible,
         )
     }
 
-    fun dismissQuickControl() {
-        mutableState.value = mutableState.value.copy(quickControlVisible = false)
+    fun dismissControlCenter() {
+        mutableState.value = mutableState.value.copy(controlCenterVisible = false)
     }
 
-    fun goHome() = navigationRepository.goHome()
-    fun openSettings() = navigationRepository.openSettings()
-    fun openAppList() = navigationRepository.openAppList()
+    fun goHome() {
+        dismissControlCenter()
+        navigationRepository.goHome()
+    }
+
+    fun openSettings() {
+        dismissControlCenter()
+        navigationRepository.openSettings()
+    }
+
+    fun openAppList() {
+        dismissControlCenter()
+        navigationRepository.openAppList()
+    }
 }
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)
-class QuickControlViewModel(
+class ControlCenterViewModel(
     private val brightnessRepository: BrightnessRepository,
     private val audioRepository: AudioRepository,
     private val hvacRepository: HvacRepository,
@@ -68,17 +79,17 @@ class QuickControlViewModel(
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
 
-    val state: StateFlow<QuickControlUiState> = combine(
+    val state: StateFlow<ControlCenterUiState> = combine(
         brightnessRepository.state,
         audioRepository.state,
         hvacRepository.state,
         brightnessPreview,
     ) { brightness, audio, hvac, preview ->
-        QuickControlUiState(brightness, audio, hvac, preview)
+        ControlCenterUiState(brightness, audio, hvac, preview)
     }.stateIn(
         viewModelScope,
         SharingStarted.Eagerly,
-        QuickControlUiState(),
+        ControlCenterUiState(),
     )
 
     init {
@@ -150,8 +161,8 @@ class SystemUiViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
         modelClass.isAssignableFrom(SystemUiViewModel::class.java) ->
             SystemUiViewModel(navigationRepository) as T
-        modelClass.isAssignableFrom(QuickControlViewModel::class.java) ->
-            QuickControlViewModel(brightnessRepository, audioRepository, hvacRepository) as T
+        modelClass.isAssignableFrom(ControlCenterViewModel::class.java) ->
+            ControlCenterViewModel(brightnessRepository, audioRepository, hvacRepository) as T
         else -> error("Unknown ViewModel ${modelClass.name}")
     }
 }

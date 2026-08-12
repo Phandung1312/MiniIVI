@@ -36,8 +36,8 @@ import com.android.car.systemui.R
 import com.android.car.systemui.di.SystemUiDependencies
 import com.android.car.systemui.presentation.CarSystemUiTheme
 import com.android.car.systemui.presentation.NavigationRailScreen
-import com.android.car.systemui.presentation.QuickControlOverlay
-import com.android.car.systemui.presentation.QuickControlViewModel
+import com.android.car.systemui.presentation.ControlCenterOverlay
+import com.android.car.systemui.presentation.ControlCenterViewModel
 import com.android.car.systemui.presentation.SystemUiViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -51,7 +51,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
 
     private lateinit var windowManager: WindowManager
     private lateinit var systemUiViewModel: SystemUiViewModel
-    private lateinit var quickControlViewModel: QuickControlViewModel
+    private lateinit var controlCenterViewModel: ControlCenterViewModel
     private var navigationView: ComposeView? = null
     private var navigationLayoutParams: WindowManager.LayoutParams? = null
     private var overlayView: ComposeView? = null
@@ -66,7 +66,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
         windowManager = getSystemService(WindowManager::class.java)
         val provider = ViewModelProvider(this, SystemUiDependencies.from(this).viewModelFactory)
         systemUiViewModel = provider[SystemUiViewModel::class.java]
-        quickControlViewModel = provider[QuickControlViewModel::class.java]
+        controlCenterViewModel = provider[ControlCenterViewModel::class.java]
         showNavigationBar()
         observeOverlayState()
     }
@@ -84,12 +84,12 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
                     val systemState by systemUiViewModel.state.collectAsStateWithLifecycle()
                     val navigationWidth = dimensionResource(R.dimen.navigation_rail_width)
                     NavigationRailScreen(
-                        quickControlVisible = systemState.quickControlVisible,
+                        controlCenterVisible = systemState.controlCenterVisible,
                         onHome = systemUiViewModel::goHome,
                         onAppList = systemUiViewModel::openAppList,
-                        onQuickControl = {
-                            if (!systemState.quickControlVisible) quickControlViewModel.refresh()
-                            systemUiViewModel.toggleQuickControl()
+                        onControlCenter = {
+                            if (!systemState.controlCenterVisible) controlCenterViewModel.refresh()
+                            systemUiViewModel.toggleControlCenter()
                         },
                         onSettings = systemUiViewModel::openSettings,
                         modifier = Modifier
@@ -121,14 +121,14 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 systemUiViewModel.state.collect { state ->
-                    if (state.quickControlVisible) showQuickControlWindow()
-                    else hideQuickControlWindow(animated = true)
+                    if (state.controlCenterVisible) showControlCenterWindow()
+                    else hideControlCenterWindow(animated = true)
                 }
             }
         }
     }
 
-    private fun showQuickControlWindow() {
+    private fun showControlCenterWindow() {
         overlayRemovalJob?.cancel()
         overlayView?.let { existing ->
             overlayAnimationVisible = true
@@ -140,7 +140,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
             isFocusableInTouchMode = true
             setOnKeyListener { _, keyCode, event ->
                 if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
-                    systemUiViewModel.dismissQuickControl()
+                    systemUiViewModel.dismissControlCenter()
                     true
                 } else {
                     false
@@ -148,21 +148,18 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
             }
             setContent {
                 CarSystemUiTheme {
-                    val state by quickControlViewModel.state.collectAsStateWithLifecycle()
-                    QuickControlOverlay(
+                    val state by controlCenterViewModel.state.collectAsStateWithLifecycle()
+                    ControlCenterOverlay(
                         visible = overlayAnimationVisible,
                         state = state,
-                        onDismiss = systemUiViewModel::dismissQuickControl,
-                        onBrightnessChanged = quickControlViewModel::onBrightnessChanged,
-                        onBrightnessChangeFinished = quickControlViewModel::onBrightnessChangeFinished,
-                        onVolumeChanged = quickControlViewModel::onVolumeChanged,
-                        onTemperatureDecrease = quickControlViewModel::decreaseTemperature,
-                        onTemperatureIncrease = quickControlViewModel::increaseTemperature,
-                        onAcChanged = quickControlViewModel::setAc,
-                        onSettings = {
-                            systemUiViewModel.dismissQuickControl()
-                            systemUiViewModel.openSettings()
-                        },
+                        onDismiss = systemUiViewModel::dismissControlCenter,
+                        onBrightnessChanged = controlCenterViewModel::onBrightnessChanged,
+                        onBrightnessChangeFinished = controlCenterViewModel::onBrightnessChangeFinished,
+                        onVolumeChanged = controlCenterViewModel::onVolumeChanged,
+                        onTemperatureDecrease = controlCenterViewModel::decreaseTemperature,
+                        onTemperatureIncrease = controlCenterViewModel::increaseTemperature,
+                        onAcChanged = controlCenterViewModel::setAc,
+                        onSettings = systemUiViewModel::openSettings,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -180,7 +177,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
         ).apply {
             gravity = Gravity.START
             x = navigationWidthPx()
-            title = "CarSystemUI Quick Control"
+            title = "CarSystemUI Control Center"
         }
         windowManager.addView(view, params)
         overlayView = view
@@ -190,13 +187,13 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
         view.post { overlayAnimationVisible = true }
     }
 
-    private fun hideQuickControlWindow(animated: Boolean) {
+    private fun hideControlCenterWindow(animated: Boolean) {
         val view = overlayView ?: return
         overlayRemovalJob?.cancel()
         overlayAnimationVisible = false
         overlayRemovalJob = lifecycleScope.launch {
             if (animated) delay(OVERLAY_EXIT_DURATION_MS)
-            if (!systemUiViewModel.state.value.quickControlVisible && overlayView === view) {
+            if (!systemUiViewModel.state.value.controlCenterVisible && overlayView === view) {
                 runCatching { windowManager.removeViewImmediate(view) }
                 overlayView = null
                 overlayLayoutParams = null

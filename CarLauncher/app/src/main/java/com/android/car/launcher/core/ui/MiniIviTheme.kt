@@ -2,52 +2,80 @@ package com.android.car.launcher.core.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.android.car.launcher.R
 
 object MiniIviColors {
-    val Background = Color(0xFFC9C5D2)
-    val BackgroundLight = Color(0xFFE2DEE8)
-    val BackgroundGlow = Color(0xFFD7D0E3)
-    val Surface = Color(0x99F4F1F7)
-    val SurfaceRaised = Color(0xB5F8F5FA)
-    val Primary = Color(0xFF8066D8)
-    val Secondary = Color(0xFFDDA8CF)
-    val TextPrimary = Color(0xFF25222B)
-    val TextSecondary = Color(0xFF6E6877)
-    val Border = Color.White.copy(alpha = 0.76f)
-    val GlassHighlight = Color.White.copy(alpha = 0.46f)
-    val GlassShadow = Color(0x3D6E6877)
+    val Background = Color(0xFF201A29)
+    val BackgroundLight = Color(0xFF15121C)
+    val BackgroundGlow = Color(0xFF2A2137)
+    val Surface = Color(0x80594B6D)
+    val SurfaceRaised = Color(0xA06F5E88)
+    internal val GlassBase = Color(0x56322940)
+    val Primary = Color(0xFFA98CF5)
+    val Secondary = Color(0xFFF0A8D8)
+    val TextPrimary = Color(0xFFF8F4FC)
+    val TextSecondary = Color(0xFFCFC6D8)
+    val Border = Color.White.copy(alpha = 0.18f)
+    val GlassHighlight = Color.White.copy(alpha = 0.12f)
+    val GlassShadow = Color(0x66000000)
 }
 
-private val MiniIviColorScheme = lightColorScheme(
+internal val MiniIviBackgroundBrush = Brush.linearGradient(
+    listOf(
+        MiniIviColors.BackgroundLight,
+        MiniIviColors.BackgroundGlow,
+        MiniIviColors.Background,
+    ),
+)
+
+private val MiniIviGlassBrush = Brush.linearGradient(
+    listOf(
+        MiniIviColors.Surface,
+        MiniIviColors.GlassBase,
+    ),
+)
+
+private val MiniIviColorScheme = darkColorScheme(
     primary = MiniIviColors.Primary,
     secondary = MiniIviColors.Secondary,
     background = MiniIviColors.Background,
     surface = MiniIviColors.Surface,
     surfaceVariant = MiniIviColors.SurfaceRaised,
     onPrimary = Color.White,
-    onSecondary = MiniIviColors.TextPrimary,
+    onSecondary = Color(0xFF201A29),
     onBackground = MiniIviColors.TextPrimary,
     onSurface = MiniIviColors.TextPrimary,
-    outline = Color(0x807B7483),
+    outline = MiniIviColors.Border,
 )
 
 @Composable
 fun MiniIviTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = MiniIviColorScheme, content = content)
+    MaterialTheme(colorScheme = MiniIviColorScheme) {
+        CompositionLocalProvider(
+            LocalContentColor provides MiniIviColors.TextPrimary,
+            content = content,
+        )
+    }
 }
 
 @Composable
@@ -58,18 +86,15 @@ fun MiniIviScaffold(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .padding(start = 104.dp)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        MiniIviColors.BackgroundLight,
-                        MiniIviColors.BackgroundGlow,
-                        MiniIviColors.Background,
-                    ),
-                ),
-            ),
-        content = content,
-    )
+            .background(MiniIviBackgroundBrush),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = dimensionResource(R.dimen.navigation_rail_clearance)),
+            content = content,
+        )
+    }
 }
 
 @Composable
@@ -80,24 +105,24 @@ fun MiniIviCard(
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    if (onClick == null) {
-        Surface(
-            modifier = modifier,
-            shape = RoundedCornerShape(cornerRadius),
-            color = color,
-            border = BorderStroke(1.dp, MiniIviColors.Border),
-            shadowElevation = 5.dp,
-            content = content,
+    val shape = RoundedCornerShape(cornerRadius)
+    val glassModifier = modifier
+        .shadow(
+            elevation = 6.dp,
+            shape = shape,
+            ambientColor = MiniIviColors.GlassShadow,
+            spotColor = MiniIviColors.GlassShadow,
         )
-    } else {
-        Surface(
-            modifier = modifier,
-            shape = RoundedCornerShape(cornerRadius),
-            color = color,
-            border = BorderStroke(1.dp, MiniIviColors.Border),
-            shadowElevation = 5.dp,
-            onClick = onClick,
-            content = content,
+        .then(
+            if (color == MiniIviColors.Surface) {
+                Modifier.background(MiniIviGlassBrush, shape)
+            } else {
+                Modifier.background(color, shape)
+            },
         )
-    }
+        .border(BorderStroke(1.dp, MiniIviColors.Border), shape)
+        .clip(shape)
+        .let { base -> if (onClick == null) base else base.clickable(onClick = onClick) }
+
+    Box(modifier = glassModifier, content = { content() })
 }

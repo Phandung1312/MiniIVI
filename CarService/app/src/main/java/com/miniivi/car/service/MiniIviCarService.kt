@@ -12,10 +12,13 @@ import com.miniivi.car.api.IAudioStateListener
 import com.miniivi.car.api.IBrightnessStateListener
 import com.miniivi.car.api.IHvacStateListener
 import com.miniivi.car.api.IMiniIviCarService
+import com.miniivi.car.api.IVehicleStatusListener
+import com.miniivi.car.api.VehicleStatusState
 import com.miniivi.car.service.control.AudioController
 import com.miniivi.car.service.control.BrightnessController
 import com.miniivi.car.service.control.CurrentUserProvider
 import com.miniivi.car.service.control.HvacController
+import com.miniivi.car.service.control.VehicleStatusController
 import java.util.concurrent.Executors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -34,10 +37,12 @@ class MiniIviCarService : Service() {
     private val brightnessListeners = RemoteCallbackList<IBrightnessStateListener>()
     private val audioListeners = RemoteCallbackList<IAudioStateListener>()
     private val hvacListeners = RemoteCallbackList<IHvacStateListener>()
+    private val vehicleStatusListeners = RemoteCallbackList<IVehicleStatusListener>()
 
     private lateinit var brightnessController: BrightnessController
     private lateinit var audioController: AudioController
     private lateinit var hvacController: HvacController
+    private lateinit var vehicleStatusController: VehicleStatusController
 
     private val binder = object : IMiniIviCarService.Stub() {
         override fun getApiVersion(): Int {
@@ -115,6 +120,23 @@ class MiniIviCarService : Service() {
             enforceAccess()
             hvacController.setAcEnabled(enabled)
         }
+
+        override fun getVehicleStatusState(): VehicleStatusState {
+            enforceAccess()
+            return vehicleStatusController.state.value
+        }
+
+        override fun registerVehicleStatusListener(listener: IVehicleStatusListener) {
+            enforceAccess()
+            if (vehicleStatusListeners.register(listener)) {
+                runCatching { listener.onVehicleStatusChanged(vehicleStatusController.state.value) }
+            }
+        }
+
+        override fun unregisterVehicleStatusListener(listener: IVehicleStatusListener) {
+            enforceAccess()
+            vehicleStatusListeners.unregister(listener)
+        }
     }
 
     override fun onCreate() {
@@ -123,6 +145,7 @@ class MiniIviCarService : Service() {
         brightnessController = BrightnessController(applicationContext, currentUserProvider, scope)
         audioController = AudioController(applicationContext, scope)
         hvacController = HvacController(applicationContext, scope)
+        vehicleStatusController = VehicleStatusController(applicationContext, scope)
 
         scope.launch {
             brightnessController.state.drop(1).collect(::notifyBrightness)
@@ -133,10 +156,14 @@ class MiniIviCarService : Service() {
         scope.launch {
             hvacController.state.drop(1).collect(::notifyHvac)
         }
+        scope.launch {
+            vehicleStatusController.state.drop(1).collect(::notifyVehicleStatus)
+        }
 
         brightnessController.start()
         audioController.start()
         hvacController.start()
+        vehicleStatusController.start()
     }
 
     override fun onBind(intent: Intent): IBinder = binder
@@ -147,9 +174,11 @@ class MiniIviCarService : Service() {
         brightnessController.stop()
         audioController.stop()
         hvacController.stop()
+        vehicleStatusController.stop()
         brightnessListeners.kill()
         audioListeners.kill()
         hvacListeners.kill()
+        vehicleStatusListeners.kill()
         scope.cancel()
         dispatcher.close()
         executor.shutdownNow()
@@ -173,6 +202,10 @@ class MiniIviCarService : Service() {
 
     private fun notifyHvac(state: HvacState) {
         broadcast(hvacListeners) { it.onHvacStateChanged(state) }
+    }
+
+    private fun notifyVehicleStatus(state: VehicleStatusState) {
+        broadcast(vehicleStatusListeners) { it.onVehicleStatusChanged(state) }
     }
 
     private inline fun <T : android.os.IInterface> broadcast(

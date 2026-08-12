@@ -1,8 +1,9 @@
 <resources>
-    <style name="Theme.CarLauncher" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.CarLauncher" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowDisablePreview">true</item>
-        <item name="android:colorAccent">#FFFFFF</item>
+        <item name="android:colorAccent">#A98CF5</item>
+        <item name="android:windowBackground">@color/launcher_window_background</item>
     </style>
 </resources>

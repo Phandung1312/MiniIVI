@@ -24,7 +24,7 @@ class AndroidNavigationRepository(
             if (settingsActivity != null) {
                 launcherApps.startMainActivity(settingsActivity.componentName, user, Rect(), null)
             } else {
-                currentUserProvider.context().startActivity(
+                currentUserProvider.launch(
                     Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
             }
@@ -48,7 +48,7 @@ class AndroidNavigationRepository(
 
     private fun launch(intent: Intent) {
         try {
-            currentUserProvider.context().startActivity(intent)
+            currentUserProvider.launch(intent)
         } catch (error: ActivityNotFoundException) {
             Log.e(TAG, "Unable to launch ${intent.component ?: intent.action}", error)
         } catch (error: SecurityException) {

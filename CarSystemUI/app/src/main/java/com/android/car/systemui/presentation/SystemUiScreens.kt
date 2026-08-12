@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,7 +49,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -74,23 +76,31 @@ import kotlin.math.roundToInt
 
 @Composable
 fun NavigationRailScreen(
-    quickControlVisible: Boolean,
+    controlCenterVisible: Boolean,
     onHome: () -> Unit,
     onAppList: () -> Unit,
-    onQuickControl: () -> Unit,
+    onControlCenter: () -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier.fillMaxSize(),
-        color = Color(0x99E8E3EF),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.76f)),
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(SystemUiRailBrush)
+            .drawBehind {
+                drawLine(
+                    color = SystemUiGlassBorder,
+                    start = Offset(size.width - 0.5f, 0f),
+                    end = Offset(size.width - 0.5f, size.height),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            },
     ) {
         BoxWithConstraints {
             val buttonSize = when {
-                maxHeight < 600.dp -> 56.dp
-                maxHeight < 760.dp -> 64.dp
-                else -> 72.dp
+                maxHeight < 600.dp -> 72.8.dp
+                maxHeight < 760.dp -> 83.2.dp
+                else -> 93.6.dp
             }
             Column(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 18.dp),
@@ -112,11 +122,11 @@ fun NavigationRailScreen(
                 )
                 Spacer(Modifier.weight(1f))
                 NavigationButton(
-                    MiniIviNavigationIcons.QuickControls,
+                    MiniIviNavigationIcons.ControlCenter,
                     R.string.navigation_control_center,
                     buttonSize,
-                    selected = quickControlVisible,
-                    onClick = onQuickControl,
+                    selected = controlCenterVisible,
+                    onClick = onControlCenter,
                 )
                 NavigationButton(
                     Icons.Rounded.Settings,
@@ -132,20 +142,22 @@ fun NavigationRailScreen(
 @Composable
 private fun NavigationBrandMark(size: Dp) {
     val label = stringResource(R.string.navigation_brand)
-    Surface(
+    SystemUiGlassPanel(
         modifier = Modifier
             .size(size)
             .testTag("navigation_brand")
             .semantics { contentDescription = label },
         shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.58f)),
+        raised = true,
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
-                text = "MI",
+                text = "IVI",
                 color = MaterialTheme.colorScheme.primary,
-                fontSize = if (size >= 64.dp) 22.sp else 18.sp,
+                fontSize = if (size >= 83.2.dp) 28.6.sp else 23.4.sp,
                 fontWeight = FontWeight.Black,
             )
         }
@@ -161,7 +173,7 @@ private fun NavigationButton(
     onClick: () -> Unit,
 ) {
     val background = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-    else Color.White.copy(alpha = 0.54f)
+    else SystemUiGlassSurface.copy(alpha = 0.34f)
     Surface(
         modifier = Modifier.size(size),
         shape = RoundedCornerShape(22.dp),
@@ -180,9 +192,9 @@ private fun NavigationButton(
 }
 
 @Composable
-fun QuickControlOverlay(
+fun ControlCenterOverlay(
     visible: Boolean,
-    state: QuickControlUiState,
+    state: ControlCenterUiState,
     onDismiss: () -> Unit,
     onBrightnessChanged: (Float) -> Unit,
     onBrightnessChangeFinished: () -> Unit,
@@ -201,7 +213,7 @@ fun QuickControlOverlay(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
-                .background(Color(0xFF746E7B).copy(alpha = 0.18f))
+                .background(Color.Black.copy(alpha = 0.90f))
                 .clickable(onClick = onDismiss),
         ) {
             AnimatedVisibility(
@@ -210,18 +222,16 @@ fun QuickControlOverlay(
                 enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.96f),
                 exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.96f),
             ) {
-                Surface(
+                SystemUiGlassPanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .fillMaxHeight(0.94f)
-                        .padding(20.dp)
-                        .clickable(enabled = true, onClick = {}),
+                        .padding(20.dp),
                     shape = RoundedCornerShape(28.dp),
-                    color = Color(0xB5F8F5FA),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.78f)),
-                    shadowElevation = 6.dp,
+                    raised = true,
+                    onClick = {},
                 ) {
-                    QuickControlContent(
+                    ControlCenterContent(
                         state = state,
                         onDismiss = onDismiss,
                         onBrightnessChanged = onBrightnessChanged,
@@ -239,8 +249,8 @@ fun QuickControlOverlay(
 }
 
 @Composable
-private fun QuickControlContent(
-    state: QuickControlUiState,
+private fun ControlCenterContent(
+    state: ControlCenterUiState,
     onDismiss: () -> Unit,
     onBrightnessChanged: (Float) -> Unit,
     onBrightnessChangeFinished: () -> Unit,
@@ -280,7 +290,7 @@ private fun QuickControlContent(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(24.dp),
                     ) {
-                        QuickControlSliders(
+                        ControlCenterSliders(
                             state = state,
                             controlBodyHeight = controlBodyHeight,
                             onBrightnessChanged = onBrightnessChanged,
@@ -305,7 +315,7 @@ private fun QuickControlContent(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        QuickControlSliders(
+                        ControlCenterSliders(
                             state = state,
                             controlBodyHeight = controlBodyHeight,
                             onBrightnessChanged = onBrightnessChanged,
@@ -332,8 +342,8 @@ private fun QuickControlContent(
 }
 
 @Composable
-private fun QuickControlSliders(
-    state: QuickControlUiState,
+private fun ControlCenterSliders(
+    state: ControlCenterUiState,
     controlBodyHeight: Dp,
     onBrightnessChanged: (Float) -> Unit,
     onBrightnessChangeFinished: () -> Unit,
@@ -345,8 +355,8 @@ private fun QuickControlSliders(
             enabled = state.brightness.available,
             icon = Icons.Rounded.BrightnessHigh,
             label = stringResource(R.string.control_brightness),
-            activeColor = Color(0xFFF7F4E8),
-            activeContentColor = Color(0xFF272A2E),
+            activeColor = Color(0xFFE8E0F5),
+            activeContentColor = Color(0xFF201A29),
             onValueChange = onBrightnessChanged,
             onValueChangeFinished = onBrightnessChangeFinished,
             controlHeight = controlBodyHeight,
@@ -390,6 +400,12 @@ private fun VerticalControl(
                 .width(108.dp)
                 .height(controlHeight)
                 .alpha(if (enabled) 1f else 0.42f)
+                .shadow(
+                    elevation = 4.dp,
+                    shape = RoundedCornerShape(42.dp),
+                    ambientColor = SystemUiGlassShadow,
+                    spotColor = SystemUiGlassShadow,
+                )
                 .clip(RoundedCornerShape(42.dp))
                 .background(CONTROL_CARD_COLOR)
                 .border(1.dp, CARD_BORDER_COLOR, RoundedCornerShape(42.dp))
@@ -464,13 +480,11 @@ private fun HvacCard(
     controlBodyHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
+    SystemUiGlassPanel(
         modifier = modifier
             .height(controlBodyHeight)
             .testTag("hvac_card"),
-        color = CONTROL_CARD_COLOR,
         shape = RoundedCornerShape(28.dp),
-        border = BorderStroke(1.dp, CARD_BORDER_COLOR),
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -547,7 +561,10 @@ private fun TemperatureControl(
     onIncrease: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier = modifier, color = INNER_CARD_COLOR, shape = RoundedCornerShape(22.dp)) {
+    SystemUiGlassPanel(
+        modifier = modifier,
+        shape = RoundedCornerShape(22.dp),
+    ) {
         Column(
             modifier = Modifier.padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -586,9 +603,8 @@ private fun ClimateButton(icon: ImageVector, description: Int, enabled: Boolean,
 private fun formatTemperature(value: Float?): String =
     value?.let { String.format(Locale.getDefault(), "%.1f\u00B0C", it) } ?: "--\u00B0C"
 
-private val CONTROL_CARD_COLOR = Color(0x99F4F1F7)
-private val INNER_CARD_COLOR = Color(0x80E4DFE8)
-private val BUTTON_CARD_COLOR = Color(0x8AEEEAF1)
-private val CARD_BORDER_COLOR = Color.White.copy(alpha = 0.76f)
+private val CONTROL_CARD_COLOR = SystemUiGlassSurface
+private val BUTTON_CARD_COLOR = Color(0x80594B6D)
+private val CARD_BORDER_COLOR = SystemUiGlassBorder
 private val SLIDER_LABEL_SPACE = 34.dp
 private val NARROW_LAYOUT_GAP = 8.dp

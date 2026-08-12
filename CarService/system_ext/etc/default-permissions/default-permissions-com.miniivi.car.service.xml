@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<exceptions>
+    <exception package="com.miniivi.car.service">
+        <permission name="android.car.permission.CAR_ENERGY" fixed="true" />
+    </exception>
+</exceptions>

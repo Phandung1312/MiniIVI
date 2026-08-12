@@ -32,31 +32,37 @@ class SystemUiViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun quickControlCanBeToggledAndDismissed() {
+    fun controlCenterCanBeToggledAndDismissed() {
         val viewModel = SystemUiViewModel(FakeNavigationRepository())
-        assertFalse(viewModel.state.value.quickControlVisible)
-        viewModel.toggleQuickControl()
-        assertTrue(viewModel.state.value.quickControlVisible)
-        viewModel.dismissQuickControl()
-        assertFalse(viewModel.state.value.quickControlVisible)
+        assertFalse(viewModel.state.value.controlCenterVisible)
+        viewModel.toggleControlCenter()
+        assertTrue(viewModel.state.value.controlCenterVisible)
+        viewModel.dismissControlCenter()
+        assertFalse(viewModel.state.value.controlCenterVisible)
     }
 
     @Test
     fun navigationActionsAreDelegated() {
         val repository = FakeNavigationRepository()
         val viewModel = SystemUiViewModel(repository)
+        viewModel.toggleControlCenter()
         viewModel.goHome()
+        assertFalse(viewModel.state.value.controlCenterVisible)
+        viewModel.toggleControlCenter()
         viewModel.openSettings()
+        assertFalse(viewModel.state.value.controlCenterVisible)
+        viewModel.toggleControlCenter()
         viewModel.openAppList()
+        assertFalse(viewModel.state.value.controlCenterVisible)
         assertEquals(listOf("home", "settings", "apps"), repository.actions)
     }
 
     @Test
-    fun quickControlCombinesStateAndForwardsActions() {
+    fun controlCenterCombinesStateAndForwardsActions() {
         val brightness = FakeBrightnessRepository()
         val audio = FakeAudioRepository()
         val hvac = FakeHvacRepository()
-        val viewModel = QuickControlViewModel(brightness, audio, hvac)
+        val viewModel = ControlCenterViewModel(brightness, audio, hvac)
         brightness.mutable.value = BrightnessState(progress = 0.25f, available = true)
         audio.mutable.value = AudioState(volume = 5, minimum = 0, maximum = 10, available = true)
         hvac.mutable.value = HvacState(connecting = false, available = true)

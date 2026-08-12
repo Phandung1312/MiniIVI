@@ -48,6 +48,8 @@ adb shell "mkdir -p /system_ext/priv-app/MiniIVICarService"
 adb push .\CarService\app\build\outputs\apk\debug\app-debug.apk /system_ext/priv-app/MiniIVICarService/MiniIVICarService.apk
 adb shell "chmod 644 /system_ext/priv-app/MiniIVICarService/MiniIVICarService.apk"
 adb push .\CarService\system_ext\etc\permissions\privapp-permissions-com.miniivi.car.service.xml /system_ext/etc/permissions/privapp-permissions-com.miniivi.car.service.xml
+adb shell "mkdir -p /system_ext/etc/default-permissions"
+adb push .\CarService\system_ext\etc\default-permissions\default-permissions-com.miniivi.car.service.xml /system_ext/etc/default-permissions/default-permissions-com.miniivi.car.service.xml
 
 # CarSystemUI
 adb push .\CarSystemUI\app\build\outputs\apk\debug\app-debug.apk /system_ext/priv-app/CarSystemUI.apk

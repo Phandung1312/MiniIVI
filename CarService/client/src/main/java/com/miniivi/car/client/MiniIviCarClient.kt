@@ -18,6 +18,8 @@ import com.miniivi.car.api.IAudioStateListener
 import com.miniivi.car.api.IBrightnessStateListener
 import com.miniivi.car.api.IHvacStateListener
 import com.miniivi.car.api.IMiniIviCarService
+import com.miniivi.car.api.IVehicleStatusListener
+import com.miniivi.car.api.VehicleStatusState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +36,9 @@ class MiniIviCarClient(context: Context) {
 
     private val mutableHvacState = MutableStateFlow(HvacState())
     val hvacState: StateFlow<HvacState> = mutableHvacState.asStateFlow()
+
+    private val mutableVehicleStatusState = MutableStateFlow(VehicleStatusState())
+    val vehicleStatusState: StateFlow<VehicleStatusState> = mutableVehicleStatusState.asStateFlow()
 
     @Volatile private var remote: IMiniIviCarService? = null
     private var started = false
@@ -59,6 +64,12 @@ class MiniIviCarClient(context: Context) {
         }
     }
 
+    private val vehicleStatusListener = object : IVehicleStatusListener.Stub() {
+        override fun onVehicleStatusChanged(state: VehicleStatusState) {
+            mutableVehicleStatusState.value = state
+        }
+    }
+
     private val deathRecipient = IBinder.DeathRecipient {
         mainHandler.post { resetBindingAndRetry("Car control service binder died") }
     }
@@ -76,9 +87,11 @@ class MiniIviCarClient(context: Context) {
                 mutableBrightnessState.value = service.brightnessState
                 mutableAudioState.value = service.audioState
                 mutableHvacState.value = service.hvacState
+                mutableVehicleStatusState.value = service.vehicleStatusState
                 service.registerBrightnessListener(brightnessListener)
                 service.registerAudioListener(audioListener)
                 service.registerHvacListener(hvacListener)
+                service.registerVehicleStatusListener(vehicleStatusListener)
             }.onSuccess {
                 remote = service
                 retryBackoff.reset()
@@ -172,6 +185,7 @@ class MiniIviCarClient(context: Context) {
         runCatching { service.unregisterBrightnessListener(brightnessListener) }
         runCatching { service.unregisterAudioListener(audioListener) }
         runCatching { service.unregisterHvacListener(hvacListener) }
+        runCatching { service.unregisterVehicleStatusListener(vehicleStatusListener) }
     }
 
     private fun unbindSafely() {
@@ -199,6 +213,11 @@ class MiniIviCarClient(context: Context) {
             diagnosticMessage = message,
         )
         mutableHvacState.value = mutableHvacState.value.copy(
+            status = FeatureStatus.UNAVAILABLE,
+            available = false,
+            diagnosticMessage = message,
+        )
+        mutableVehicleStatusState.value = mutableVehicleStatusState.value.copy(
             status = FeatureStatus.UNAVAILABLE,
             available = false,
             diagnosticMessage = message,

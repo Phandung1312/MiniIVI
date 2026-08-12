@@ -18,6 +18,14 @@
     <string name="navigation_preview">Navigation</string>
     <string name="open_maps">Open Maps</string>
     <string name="vehicle_status">Vehicle status</string>
+    <string name="vehicle_battery">Battery</string>
+    <string name="vehicle_cabin">Cabin</string>
+    <string name="vehicle_outside">Outside</string>
+    <string name="vehicle_range">Range</string>
+    <string name="vehicle_tires">Tires</string>
+    <string name="vehicle_climate">Climate</string>
+    <string name="tires_normal">Normal</string>
+    <string name="tires_low">Low pressure</string>
     <string name="vehicle_climate_connected">Climate connected</string>
     <string name="vehicle_climate_connecting">Climate connecting</string>
     <string name="vehicle_data_unavailable">Vehicle data unavailable</string>

@@ -6,6 +6,8 @@ import com.miniivi.car.api.HvacState;
 import com.miniivi.car.api.IAudioStateListener;
 import com.miniivi.car.api.IBrightnessStateListener;
 import com.miniivi.car.api.IHvacStateListener;
+import com.miniivi.car.api.IVehicleStatusListener;
+import com.miniivi.car.api.VehicleStatusState;
 
 interface IMiniIviCarService {
     int getApiVersion();
@@ -25,4 +27,8 @@ interface IMiniIviCarService {
     oneway void setMediaVolume(int volume);
     oneway void setHvacTemperature(int zone, float celsius);
     oneway void setAcEnabled(boolean enabled);
+
+    VehicleStatusState getVehicleStatusState();
+    void registerVehicleStatusListener(IVehicleStatusListener listener);
+    void unregisterVehicleStatusListener(IVehicleStatusListener listener);
 }
