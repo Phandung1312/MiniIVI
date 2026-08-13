@@ -5,11 +5,14 @@ import android.content.Intent
 import android.os.IBinder
 import android.os.RemoteCallbackList
 import com.miniivi.car.api.AudioState
+import com.miniivi.car.api.BluetoothFeatureState
 import com.miniivi.car.api.BrightnessState
+import com.miniivi.car.api.CarFeature
 import com.miniivi.car.api.CarServiceContract
 import com.miniivi.car.api.ClimateControlState
 import com.miniivi.car.api.HvacState
 import com.miniivi.car.api.IAudioStateListener
+import com.miniivi.car.api.IBluetoothFeatureStateListener
 import com.miniivi.car.api.IBrightnessStateListener
 import com.miniivi.car.api.IHvacStateListener
 import com.miniivi.car.api.IClimateControlStateListener
@@ -19,6 +22,7 @@ import com.miniivi.car.api.IQuickControlsStateListener
 import com.miniivi.car.api.QuickControlsState
 import com.miniivi.car.api.VehicleStatusState
 import com.miniivi.car.service.control.AudioController
+import com.miniivi.car.service.control.BluetoothController
 import com.miniivi.car.service.control.BrightnessController
 import com.miniivi.car.service.control.CurrentUserProvider
 import com.miniivi.car.service.control.HvacController
@@ -45,12 +49,14 @@ class MiniIviCarService : Service() {
     private val vehicleStatusListeners = RemoteCallbackList<IVehicleStatusListener>()
     private val climateControlListeners = RemoteCallbackList<IClimateControlStateListener>()
     private val quickControlsListeners = RemoteCallbackList<IQuickControlsStateListener>()
+    private val bluetoothListeners = RemoteCallbackList<IBluetoothFeatureStateListener>()
 
     private lateinit var brightnessController: BrightnessController
     private lateinit var audioController: AudioController
     private lateinit var hvacController: HvacController
     private lateinit var vehicleStatusController: VehicleStatusController
     private lateinit var quickControlsController: QuickControlsController
+    private lateinit var bluetoothController: BluetoothController
 
     private val binder = object : IMiniIviCarService.Stub() {
         override fun getApiVersion(): Int {
@@ -245,6 +251,49 @@ class MiniIviCarService : Service() {
             enforceAccess()
             quickControlsController.requestScreenOff()
         }
+
+        override fun requestStateRefresh(featureMask: Int) {
+            enforceAccess()
+            if (featureMask and CarFeature.BRIGHTNESS != 0) brightnessController.refresh()
+            if (featureMask and CarFeature.AUDIO != 0) audioController.refresh()
+            if (featureMask and CarFeature.HVAC != 0) hvacController.refresh()
+            if (featureMask and CarFeature.VEHICLE_STATUS != 0) vehicleStatusController.refresh()
+            if (featureMask and CarFeature.QUICK_CONTROLS != 0) quickControlsController.refresh()
+            if (featureMask and CarFeature.BLUETOOTH != 0) bluetoothController.refresh()
+        }
+
+        override fun getBluetoothFeatureState(): BluetoothFeatureState {
+            enforceAccess()
+            return bluetoothController.state.value
+        }
+
+        override fun registerBluetoothFeatureStateListener(
+            listener: IBluetoothFeatureStateListener,
+        ) {
+            enforceAccess()
+            if (bluetoothListeners.register(listener)) {
+                runCatching {
+                    listener.onBluetoothFeatureStateChanged(bluetoothController.state.value)
+                }
+            }
+        }
+
+        override fun unregisterBluetoothFeatureStateListener(
+            listener: IBluetoothFeatureStateListener,
+        ) {
+            enforceAccess()
+            bluetoothListeners.unregister(listener)
+        }
+
+        override fun requestBluetoothDiscovery(): Boolean {
+            enforceAccess()
+            return bluetoothController.requestDiscovery()
+        }
+
+        override fun renameLocalBluetoothDevice(name: String): Boolean {
+            enforceAccess()
+            return bluetoothController.renameLocalDevice(name)
+        }
     }
 
     override fun onCreate() {
@@ -254,7 +303,8 @@ class MiniIviCarService : Service() {
         audioController = AudioController(applicationContext, scope)
         hvacController = HvacController(applicationContext, scope)
         vehicleStatusController = VehicleStatusController(applicationContext, scope)
-        quickControlsController = QuickControlsController(applicationContext, scope)
+        bluetoothController = BluetoothController(applicationContext, scope)
+        quickControlsController = QuickControlsController(applicationContext, scope, bluetoothController)
 
         scope.launch {
             brightnessController.state.drop(1).collect(::notifyBrightness)
@@ -274,11 +324,15 @@ class MiniIviCarService : Service() {
         scope.launch {
             quickControlsController.state.drop(1).collect(::notifyQuickControls)
         }
+        scope.launch {
+            bluetoothController.state.drop(1).collect(::notifyBluetooth)
+        }
 
         brightnessController.start()
         audioController.start()
         hvacController.start()
         vehicleStatusController.start()
+        bluetoothController.start()
         quickControlsController.start()
     }
 
@@ -292,12 +346,14 @@ class MiniIviCarService : Service() {
         hvacController.stop()
         vehicleStatusController.stop()
         quickControlsController.stop()
+        bluetoothController.stop()
         brightnessListeners.kill()
         audioListeners.kill()
         hvacListeners.kill()
         vehicleStatusListeners.kill()
         climateControlListeners.kill()
         quickControlsListeners.kill()
+        bluetoothListeners.kill()
         scope.cancel()
         dispatcher.close()
         executor.shutdownNow()
@@ -338,6 +394,10 @@ class MiniIviCarService : Service() {
 
     private fun notifyQuickControls(state: QuickControlsState) {
         broadcast(quickControlsListeners) { it.onQuickControlsStateChanged(state) }
+    }
+
+    private fun notifyBluetooth(state: BluetoothFeatureState) {
+        broadcast(bluetoothListeners) { it.onBluetoothFeatureStateChanged(state) }
     }
 
     private inline fun <T : android.os.IInterface> broadcast(

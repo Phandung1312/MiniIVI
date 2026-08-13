@@ -117,7 +117,10 @@ class HvacController(
         scope.launch {
             if (propertyManager == null) return@launch
             runCatching { readCurrentState() }
-                .onSuccess { mutableState.value = it }
+                .onSuccess {
+                    mutableState.value = it
+                    publishClimateState()
+                }
                 .onFailure { error -> handlePlatformFailure("Unable to refresh HVAC state", error) }
         }
     }

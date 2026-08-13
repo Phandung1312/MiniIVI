@@ -1,147 +1,37 @@
 package com.android.car.launcher.feature.bluetooth.repository
 
-import android.annotation.SuppressLint
-import android.bluetooth.BluetoothManager
-import android.content.Context
-import android.util.Log
-import com.android.car.launcher.feature.bluetooth.model.BluetoothEvent
 import com.android.car.launcher.feature.bluetooth.model.BluetoothState
 import com.android.car.launcher.feature.bluetooth.model.DeviceInfo
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import dagger.hilt.android.qualifiers.ApplicationContext
+import com.miniivi.car.api.BluetoothDeviceInfo
+import com.miniivi.car.api.QuickControl
+import com.miniivi.car.client.MiniIviCarClient
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class BluetoothRepository @Inject constructor(
-    @ApplicationContext context: Context,
+    private val client: MiniIviCarClient,
 ) {
-    private val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
-    private val _state = MutableStateFlow(BluetoothState(supported = adapter != null))
-    val state = _state.asStateFlow()
-
-    @SuppressLint("MissingPermission")
-    fun refresh() {
-        if (adapter == null) {
-            _state.value = BluetoothState(supported = false)
-            return
-        }
-
-        try {
-            val paired = adapter.bondedDevices
-                .map { device ->
-                    DeviceInfo(
-                        address = device.address,
-                        name = device.name,
-                        bonded = true,
-                    )
-                }
-                .sortedBy { it.name ?: it.address }
-            _state.update {
-                it.copy(
-                    enabled = adapter.isEnabled,
-                    discovering = adapter.isDiscovering,
-                    localName = adapter.name,
-                    localAddress = adapter.address.takeUnless { address ->
-                        address == UNAVAILABLE_BLUETOOTH_ADDRESS
-                    },
-                    pairedDevices = paired,
-                )
-            }
-        } catch (error: SecurityException) {
-            Log.w(TAG, "Bluetooth permission missing while refreshing state", error)
-        }
+    val state: Flow<BluetoothState> = client.bluetoothState.map { remote ->
+        BluetoothState(
+            supported = remote.supported,
+            enabled = remote.enabled,
+            discovering = remote.discovering,
+            localName = remote.localName,
+            localAddress = remote.localAddress,
+            pairedDevices = remote.pairedDevices.map { it.toUiModel() },
+            nearbyDevices = remote.nearbyDevices.map { it.toUiModel() },
+            connectedDevices = remote.connectedDevices.map { it.toUiModel() },
+        )
     }
 
-    @SuppressLint("MissingPermission")
-    fun startDiscovery(): Boolean {
-        if (adapter == null || !_state.value.enabled) return false
-        return try {
-            if (adapter.isDiscovering) adapter.cancelDiscovery()
-            _state.update { it.copy(nearbyDevices = emptyList()) }
-            adapter.startDiscovery()
-        } catch (error: SecurityException) {
-            Log.w(TAG, "Bluetooth permission missing while starting discovery", error)
-            false
-        }
-    }
+    fun start() = client.start()
+    fun refresh() { client.refreshBluetooth() }
+    fun enable(): Boolean = client.setQuickControlEnabled(QuickControl.BLUETOOTH, true)
+    fun startDiscovery(): Boolean = client.requestBluetoothDiscovery()
+    fun renameLocalDevice(name: String): Boolean = client.renameLocalBluetoothDevice(name)
 
-    @SuppressLint("MissingPermission")
-    fun renameLocalDevice(name: String): Boolean {
-        val normalizedName = name.trim()
-        if (adapter == null || !_state.value.enabled || normalizedName.isEmpty()) return false
-
-        return try {
-            adapter.setName(normalizedName).also { renamed ->
-                if (renamed) {
-                    _state.update { it.copy(localName = normalizedName) }
-                }
-            }
-        } catch (error: SecurityException) {
-            Log.w(TAG, "Bluetooth permission missing while renaming local device", error)
-            false
-        }
-    }
-
-    fun onEvent(event: BluetoothEvent) {
-        Log.d(TAG, "Broadcast event: $event")
-        when (event) {
-            is BluetoothEvent.AdapterStateChanged -> _state.update {
-                it.copy(
-                    enabled = event.enabled,
-                    discovering = false,
-                    nearbyDevices = if (event.enabled) it.nearbyDevices else emptyList(),
-                    connectedDevices = if (event.enabled) it.connectedDevices else emptyList(),
-                )
-            }
-
-            BluetoothEvent.DiscoveryStarted -> _state.update { it.copy(discovering = true) }
-            BluetoothEvent.DiscoveryFinished -> _state.update { it.copy(discovering = false) }
-            is BluetoothEvent.DeviceFound -> _state.update {
-                it.copy(nearbyDevices = (it.nearbyDevices + event.device).distinctBy(DeviceInfo::address))
-            }
-
-            is BluetoothEvent.DeviceConnected -> _state.update {
-                it.copy(
-                    connectedDevices = (it.connectedDevices + event.device)
-                        .distinctBy(DeviceInfo::address),
-                )
-            }
-
-            is BluetoothEvent.DeviceDisconnected -> _state.update {
-                it.copy(
-                    connectedDevices = it.connectedDevices.filterNot { device ->
-                        device.address == event.address
-                    },
-                )
-            }
-
-            is BluetoothEvent.DeviceNameChanged -> _state.update {
-                it.copy(
-                    pairedDevices = it.pairedDevices.replaceDevice(event.device),
-                    nearbyDevices = it.nearbyDevices.replaceDevice(event.device),
-                    connectedDevices = it.connectedDevices.replaceDevice(event.device),
-                )
-            }
-
-            is BluetoothEvent.BondStateChanged -> _state.update {
-                val paired = if (event.device.bonded) {
-                    (it.pairedDevices + event.device).distinctBy(DeviceInfo::address)
-                } else {
-                    it.pairedDevices.filterNot { device -> device.address == event.device.address }
-                }
-                it.copy(pairedDevices = paired)
-            }
-        }
-    }
-
-    private fun List<DeviceInfo>.replaceDevice(updated: DeviceInfo): List<DeviceInfo> =
-        map { current -> if (current.address == updated.address) updated else current }
-
-    private companion object {
-        const val TAG = "BluetoothRepository"
-        const val UNAVAILABLE_BLUETOOTH_ADDRESS = "02:00:00:00:00:00"
-    }
+    private fun BluetoothDeviceInfo.toUiModel() = DeviceInfo(address, name, bonded)
 }

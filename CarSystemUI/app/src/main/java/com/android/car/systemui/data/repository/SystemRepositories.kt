@@ -59,6 +59,10 @@ interface NavigationRepository {
     fun goHome()
     fun openSettings()
     fun openAppList()
+    fun openWifiSettings()
+    fun openWirelessSettings()
+    fun openBluetoothSettings()
+    fun openCamera(): Boolean
 }
 
 interface StartupRepository {

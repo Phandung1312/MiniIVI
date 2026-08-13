@@ -10,20 +10,29 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 
+interface MediaController {
+    val state: StateFlow<MediaState>
+    suspend fun loadSongs()
+    fun togglePlayback()
+    fun playNext()
+    fun playPrevious()
+}
+
 @Singleton
 class MediaRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-) {
+) : MediaController {
     private val _state = MutableStateFlow(MediaState())
-    val state = _state.asStateFlow()
+    override val state = _state.asStateFlow()
 
     private var mediaPlayer: MediaPlayer? = null
 
-    suspend fun loadSongs() {
+    override suspend fun loadSongs() {
         _state.update { it.copy(isLoading = true, errorMessage = null) }
         val result = runCatching {
             withContext(Dispatchers.IO) { querySongs() }
@@ -101,7 +110,7 @@ class MediaRepository @Inject constructor(
         }
     }
 
-    fun togglePlayback() {
+    override fun togglePlayback() {
         val player = mediaPlayer
         when {
             _state.value.tracks.isEmpty() || _state.value.isPreparing -> Unit
@@ -118,13 +127,13 @@ class MediaRepository @Inject constructor(
         }
     }
 
-    fun playNext() {
+    override fun playNext() {
         val tracks = _state.value.tracks
         if (tracks.isEmpty()) return
         play((_state.value.selectedIndex + 1) % tracks.size)
     }
 
-    fun playPrevious() {
+    override fun playPrevious() {
         val tracks = _state.value.tracks
         if (tracks.isEmpty()) return
         val previous = if (_state.value.selectedIndex == 0) tracks.lastIndex

@@ -2,8 +2,6 @@
 
 package com.android.car.systemui.presentation
 
-import android.content.Intent
-import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -74,7 +72,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -93,7 +90,6 @@ import com.miniivi.car.api.HvacZone
 import com.miniivi.car.api.QuickControl
 import com.miniivi.car.api.TemperatureUnit
 import java.util.Locale
-import kotlin.math.roundToInt
 
 @Composable
 fun ControlCenterOverlay(
@@ -126,7 +122,10 @@ fun ControlCenterOverlay(
     onAutoRecirculationChanged: (Boolean) -> Unit = {},
     onSteeringWheelHeatChanged: (Int) -> Unit = {},
     onTemperatureUnitChanged: (Int) -> Unit = {},
-    onShowCamera: () -> Unit = {},
+    onOpenWifiSettings: () -> Unit = {},
+    onOpenWirelessSettings: () -> Unit = {},
+    onOpenBluetoothSettings: () -> Unit = {},
+    onOpenCamera: () -> Unit = {},
     onHideCamera: () -> Unit = {},
     onScreenOff: () -> Unit = {},
     onDismissScreenCurtain: () -> Unit = {},
@@ -175,7 +174,10 @@ fun ControlCenterOverlay(
                                 onBrightnessChangeFinished = onBrightnessChangeFinished,
                                 onVolumeChanged = onVolumeChanged,
                                 onQuickControlChanged = onQuickControlChanged,
-                                onShowCamera = onShowCamera,
+                                onOpenWifiSettings = onOpenWifiSettings,
+                                onOpenWirelessSettings = onOpenWirelessSettings,
+                                onOpenBluetoothSettings = onOpenBluetoothSettings,
+                                onOpenCamera = onOpenCamera,
                                 onScreenOff = onScreenOff,
                                 modifier = Modifier.weight(1.18f).fillMaxHeight(),
                             )
@@ -518,12 +520,14 @@ private fun UtilityDeck(
     onBrightnessChangeFinished: () -> Unit,
     onVolumeChanged: (Float) -> Unit,
     onQuickControlChanged: (Int, Boolean) -> Unit,
-    onShowCamera: () -> Unit,
+    onOpenWifiSettings: () -> Unit,
+    onOpenWirelessSettings: () -> Unit,
+    onOpenBluetoothSettings: () -> Unit,
+    onOpenCamera: () -> Unit,
     onScreenOff: () -> Unit,
     modifier: Modifier,
 ) {
     val quick = state.extendedControls.quickControls
-    val context = LocalContext.current
     SystemUiGlassPanel(modifier, RoundedCornerShape(26.dp)) {
         Column(
             Modifier.fillMaxSize().padding(if (compact) 9.dp else 13.dp),
@@ -551,10 +555,10 @@ private fun UtilityDeck(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     QuickTile(Icons.Rounded.Wifi, "Wi-Fi", quick.wifiEnabled, compact, Modifier.weight(1f), {
                         onQuickControlChanged(QuickControl.WIFI, !quick.wifiEnabled)
-                    }, { openSettings(context, Settings.ACTION_WIFI_SETTINGS) })
+                    }, onOpenWifiSettings)
                     QuickTile(Icons.Rounded.WifiTethering, "Hotspot", quick.hotspotEnabled, compact, Modifier.weight(1f), {
                         onQuickControlChanged(QuickControl.HOTSPOT, !quick.hotspotEnabled)
-                    }, { openSettings(context, Settings.ACTION_WIRELESS_SETTINGS) })
+                    }, onOpenWirelessSettings)
                     QuickTile(Icons.Rounded.LockPerson, "Valet Mode", quick.valetModeEnabled, compact, Modifier.weight(1f), {
                         onQuickControlChanged(QuickControl.VALET_MODE, !quick.valetModeEnabled)
                     })
@@ -562,11 +566,9 @@ private fun UtilityDeck(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     QuickTile(Icons.Rounded.Bluetooth, "Bluetooth", quick.bluetoothEnabled, compact, Modifier.weight(1f), {
                         onQuickControlChanged(QuickControl.BLUETOOTH, !quick.bluetoothEnabled)
-                    }, { openSettings(context, Settings.ACTION_BLUETOOTH_SETTINGS) })
+                    }, onOpenBluetoothSettings)
                     QuickTile(Icons.Rounded.CameraAlt, "Camera", false, compact, Modifier.weight(1f), {
-                        val intent = Intent(CAMERA_ACTION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        if (context.packageManager.resolveActivity(intent, 0) != null) context.startActivity(intent)
-                        else onShowCamera()
+                        onOpenCamera()
                     })
                     QuickTile(Icons.Rounded.ScreenLockLandscape, "Screen Off", false, compact, Modifier.weight(1f), onScreenOff)
                 }
@@ -595,7 +597,6 @@ private fun HorizontalControl(
                 Text(label, fontSize = if (compact) 12.sp else 15.sp)
                 Slider(value.coerceIn(0f, 1f), onValueChange, enabled = enabled, onValueChangeFinished = onFinished)
             }
-            Text("${(value * 100).roundToInt()}%", fontSize = 12.sp)
         }
     }
 }
@@ -892,10 +893,6 @@ private fun ScreenCurtain(onDismiss: () -> Unit) {
     }
 }
 
-private fun openSettings(context: android.content.Context, action: String) {
-    runCatching { context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-}
-
 private fun airflowIcon(direction: Int): ImageVector = when (direction) {
     ClimateFanDirection.FEET -> Icons.Rounded.Air
     ClimateFanDirection.FACE_AND_FEET -> Icons.Rounded.Sync
@@ -918,4 +915,3 @@ private val B02MetalBrush = Brush.linearGradient(
     listOf(Color(0xFF4A4F55), Color(0xFF30353A), Color(0xFF25292E), Color(0xFF15181C)),
 )
 private val SeatHeat = Color(0xFFF0A8D8)
-private const val CAMERA_ACTION = "com.miniivi.car.action.OPEN_CAMERA_VIEW"

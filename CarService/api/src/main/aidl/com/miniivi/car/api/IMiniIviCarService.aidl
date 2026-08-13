@@ -12,6 +12,8 @@ import com.miniivi.car.api.ClimateControlState;
 import com.miniivi.car.api.QuickControlsState;
 import com.miniivi.car.api.IClimateControlStateListener;
 import com.miniivi.car.api.IQuickControlsStateListener;
+import com.miniivi.car.api.BluetoothFeatureState;
+import com.miniivi.car.api.IBluetoothFeatureStateListener;
 
 interface IMiniIviCarService {
     int getApiVersion();
@@ -59,4 +61,12 @@ interface IMiniIviCarService {
     void unregisterQuickControlsStateListener(IQuickControlsStateListener listener);
     oneway void setQuickControlEnabled(int control, boolean enabled);
     oneway void requestScreenOff();
+
+    // API version 4. New methods must remain appended for Binder compatibility.
+    oneway void requestStateRefresh(int featureMask);
+    BluetoothFeatureState getBluetoothFeatureState();
+    void registerBluetoothFeatureStateListener(IBluetoothFeatureStateListener listener);
+    void unregisterBluetoothFeatureStateListener(IBluetoothFeatureStateListener listener);
+    boolean requestBluetoothDiscovery();
+    boolean renameLocalBluetoothDevice(String name);
 }

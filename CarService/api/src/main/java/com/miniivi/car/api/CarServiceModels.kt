@@ -4,10 +4,20 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 
 object CarServiceContract {
-    const val API_VERSION = 3
+    const val API_VERSION = 4
+    const val MIN_COMPATIBLE_API_VERSION = 3
     const val SERVICE_PACKAGE = "com.miniivi.car.service"
     const val SERVICE_CLASS = "com.miniivi.car.service.MiniIviCarService"
     const val CONTROL_PERMISSION = "com.miniivi.car.permission.CONTROL"
+}
+
+object CarFeature {
+    const val BRIGHTNESS = 1 shl 0
+    const val AUDIO = 1 shl 1
+    const val HVAC = 1 shl 2
+    const val VEHICLE_STATUS = 1 shl 3
+    const val QUICK_CONTROLS = 1 shl 4
+    const val BLUETOOTH = 1 shl 5
 }
 
 object FeatureStatus {
@@ -199,6 +209,29 @@ data class VehicleStatusState(
     val hasTirePressure: Boolean = false,
     val minimumTirePressureKpa: Float = 0f,
     val tiresHealthy: Boolean = true,
+    val errorCode: Int = CarServiceError.NONE,
+    val diagnosticMessage: String? = null,
+) : Parcelable
+
+@Parcelize
+data class BluetoothDeviceInfo(
+    val address: String,
+    val name: String? = null,
+    val bonded: Boolean = false,
+) : Parcelable
+
+@Parcelize
+data class BluetoothFeatureState(
+    val status: Int = FeatureStatus.CONNECTING,
+    val available: Boolean = false,
+    val supported: Boolean = false,
+    val enabled: Boolean = false,
+    val discovering: Boolean = false,
+    val localName: String? = null,
+    val localAddress: String? = null,
+    val pairedDevices: List<BluetoothDeviceInfo> = emptyList(),
+    val nearbyDevices: List<BluetoothDeviceInfo> = emptyList(),
+    val connectedDevices: List<BluetoothDeviceInfo> = emptyList(),
     val errorCode: Int = CarServiceError.NONE,
     val diagnosticMessage: String? = null,
 ) : Parcelable

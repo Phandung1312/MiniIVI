@@ -46,15 +46,37 @@ class AndroidNavigationRepository(
         )
     }
 
-    private fun launch(intent: Intent) {
-        try {
+    override fun openWifiSettings() {
+        launch(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    override fun openWirelessSettings() {
+        launch(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    override fun openBluetoothSettings() {
+        launch(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    override fun openCamera(): Boolean {
+        val intent = Intent(CAMERA_ACTION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching {
+            val context = currentUserProvider.context()
+            context.packageManager.resolveActivity(intent, 0) != null && launch(intent)
+        }.onFailure { error -> Log.e(TAG, "Unable to resolve the camera activity", error) }
+            .getOrDefault(false)
+    }
+
+    private fun launch(intent: Intent): Boolean = try {
             currentUserProvider.launch(intent)
+            true
         } catch (error: ActivityNotFoundException) {
             Log.e(TAG, "Unable to launch ${intent.component ?: intent.action}", error)
+            false
         } catch (error: SecurityException) {
             Log.e(TAG, "Unable to launch activity for current user", error)
+            false
         }
-    }
 
     private fun injectKey(keyCode: Int) {
         runCatching {
@@ -87,5 +109,6 @@ class AndroidNavigationRepository(
         const val APP_LIST_ACTIVITY = "com.android.car.launcher.feature.dashboard.HomeActivity"
         const val START_DESTINATION_EXTRA = "com.android.car.launcher.extra.START_DESTINATION"
         const val APPS_DESTINATION = "apps"
+        const val CAMERA_ACTION = "com.miniivi.car.action.OPEN_CAMERA_VIEW"
     }
 }

@@ -10,12 +10,15 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import com.miniivi.car.api.AudioState
+import com.miniivi.car.api.BluetoothFeatureState
 import com.miniivi.car.api.BrightnessState
+import com.miniivi.car.api.CarFeature
 import com.miniivi.car.api.CarServiceContract
 import com.miniivi.car.api.ClimateControlState
 import com.miniivi.car.api.FeatureStatus
 import com.miniivi.car.api.HvacState
 import com.miniivi.car.api.IAudioStateListener
+import com.miniivi.car.api.IBluetoothFeatureStateListener
 import com.miniivi.car.api.IBrightnessStateListener
 import com.miniivi.car.api.IHvacStateListener
 import com.miniivi.car.api.IClimateControlStateListener
@@ -50,7 +53,11 @@ class MiniIviCarClient(context: Context) {
     private val mutableQuickControlsState = MutableStateFlow(QuickControlsState())
     val quickControlsState: StateFlow<QuickControlsState> = mutableQuickControlsState.asStateFlow()
 
+    private val mutableBluetoothState = MutableStateFlow(BluetoothFeatureState())
+    val bluetoothState: StateFlow<BluetoothFeatureState> = mutableBluetoothState.asStateFlow()
+
     @Volatile private var remote: IMiniIviCarService? = null
+    @Volatile private var remoteApiVersion = 0
     private var started = false
     private var binding = false
     private var bound = false
@@ -92,6 +99,12 @@ class MiniIviCarClient(context: Context) {
         }
     }
 
+    private val bluetoothListener = object : IBluetoothFeatureStateListener.Stub() {
+        override fun onBluetoothFeatureStateChanged(state: BluetoothFeatureState) {
+            mutableBluetoothState.value = state
+        }
+    }
+
     private val deathRecipient = IBinder.DeathRecipient {
         mainHandler.post { resetBindingAndRetry("Car control service binder died") }
     }
@@ -102,7 +115,8 @@ class MiniIviCarClient(context: Context) {
             bound = true
             val service = IMiniIviCarService.Stub.asInterface(binder)
             runCatching {
-                check(service.apiVersion >= CarServiceContract.API_VERSION) {
+                val apiVersion = service.apiVersion
+                check(apiVersion >= CarServiceContract.MIN_COMPATIBLE_API_VERSION) {
                     "Unsupported car service API version ${service.apiVersion}"
                 }
                 binder.linkToDeath(deathRecipient, 0)
@@ -112,12 +126,23 @@ class MiniIviCarClient(context: Context) {
                 mutableVehicleStatusState.value = service.vehicleStatusState
                 mutableClimateControlState.value = service.climateControlState
                 mutableQuickControlsState.value = service.quickControlsState
+                if (CarServiceCompatibility.supportsBluetooth(apiVersion)) {
+                    mutableBluetoothState.value = service.bluetoothFeatureState
+                } else {
+                    mutableBluetoothState.value = unavailableBluetoothState(
+                        "Bluetooth feature requires car service API $BLUETOOTH_API_VERSION",
+                    )
+                }
                 service.registerBrightnessListener(brightnessListener)
                 service.registerAudioListener(audioListener)
                 service.registerHvacListener(hvacListener)
                 service.registerVehicleStatusListener(vehicleStatusListener)
                 service.registerClimateControlStateListener(climateControlListener)
                 service.registerQuickControlsStateListener(quickControlsListener)
+                if (CarServiceCompatibility.supportsBluetooth(apiVersion)) {
+                    service.registerBluetoothFeatureStateListener(bluetoothListener)
+                }
+                remoteApiVersion = apiVersion
             }.onSuccess {
                 remote = service
                 retryBackoff.reset()
@@ -129,6 +154,7 @@ class MiniIviCarClient(context: Context) {
 
         override fun onServiceDisconnected(name: ComponentName) {
             remote = null
+            remoteApiVersion = 0
             publishDisconnected("Car control service disconnected")
         }
 
@@ -153,6 +179,7 @@ class MiniIviCarClient(context: Context) {
         mainHandler.removeCallbacksAndMessages(RETRY_TOKEN)
         remote?.let(::unregisterListeners)
         remote = null
+        remoteApiVersion = 0
         unbindSafely()
         publishDisconnected("Car control client stopped")
     }
@@ -216,6 +243,61 @@ class MiniIviCarClient(context: Context) {
 
     fun requestScreenOff(): Boolean = sendCommand { it.requestScreenOff() }
 
+    fun refreshBrightness(): Boolean = requestStateRefresh(CarFeature.BRIGHTNESS)
+
+    fun refreshAudio(): Boolean = requestStateRefresh(CarFeature.AUDIO)
+
+    fun refreshHvac(): Boolean = requestStateRefresh(CarFeature.HVAC)
+
+    fun refreshVehicleStatus(): Boolean = requestStateRefresh(CarFeature.VEHICLE_STATUS)
+
+    fun refreshQuickControls(): Boolean = requestStateRefresh(CarFeature.QUICK_CONTROLS)
+
+    fun refreshBluetooth(): Boolean = requestStateRefresh(CarFeature.BLUETOOTH)
+
+    fun requestBluetoothDiscovery(): Boolean = callVersion4 { it.requestBluetoothDiscovery() }
+
+    fun renameLocalBluetoothDevice(name: String): Boolean =
+        callVersion4 { it.renameLocalBluetoothDevice(name) }
+
+    private fun requestStateRefresh(featureMask: Int): Boolean =
+        if (CarServiceCompatibility.supportsRefresh(remoteApiVersion)) {
+            sendCommand { it.requestStateRefresh(featureMask) }
+        } else {
+            resyncCachedState(featureMask)
+        }
+
+    private fun resyncCachedState(featureMask: Int): Boolean {
+        val service = remote ?: return false
+        return runCatching {
+            if (featureMask and CarFeature.BRIGHTNESS != 0) mutableBrightnessState.value = service.brightnessState
+            if (featureMask and CarFeature.AUDIO != 0) mutableAudioState.value = service.audioState
+            if (featureMask and CarFeature.HVAC != 0) {
+                mutableHvacState.value = service.hvacState
+                mutableClimateControlState.value = service.climateControlState
+            }
+            if (featureMask and CarFeature.VEHICLE_STATUS != 0) {
+                mutableVehicleStatusState.value = service.vehicleStatusState
+            }
+            if (featureMask and CarFeature.QUICK_CONTROLS != 0) {
+                mutableQuickControlsState.value = service.quickControlsState
+            }
+        }.isSuccess
+    }
+
+    private fun callVersion4(command: (IMiniIviCarService) -> Boolean): Boolean {
+        val service = remote ?: return false
+        if (!CarServiceCompatibility.supportsBluetooth(remoteApiVersion)) return false
+        return runCatching { command(service) }
+            .onFailure { error ->
+                Log.w(TAG, "Unable to send a Bluetooth command", error)
+                mainHandler.post {
+                    resetBindingAndRetry(error.message ?: "Car control Bluetooth command failed")
+                }
+            }
+            .getOrDefault(false)
+    }
+
     private fun sendCommand(command: (IMiniIviCarService) -> Unit): Boolean {
         val service = remote ?: return false
         return runCatching { command(service) }
@@ -249,6 +331,7 @@ class MiniIviCarClient(context: Context) {
         remote?.asBinder()?.unlinkToDeath(deathRecipient, 0)
         remote?.let(::unregisterListeners)
         remote = null
+        remoteApiVersion = 0
         unbindSafely()
         publishDisconnected(message)
         scheduleRetry()
@@ -261,6 +344,9 @@ class MiniIviCarClient(context: Context) {
         runCatching { service.unregisterVehicleStatusListener(vehicleStatusListener) }
         runCatching { service.unregisterClimateControlStateListener(climateControlListener) }
         runCatching { service.unregisterQuickControlsStateListener(quickControlsListener) }
+        if (CarServiceCompatibility.supportsBluetooth(remoteApiVersion)) {
+            runCatching { service.unregisterBluetoothFeatureStateListener(bluetoothListener) }
+        }
     }
 
     private fun unbindSafely() {
@@ -307,14 +393,29 @@ class MiniIviCarClient(context: Context) {
             available = false,
             diagnosticMessage = message,
         )
+        mutableBluetoothState.value = unavailableBluetoothState(message)
     }
+
+    private fun unavailableBluetoothState(message: String) = BluetoothFeatureState(
+        status = FeatureStatus.UNAVAILABLE,
+        available = false,
+        supported = false,
+        diagnosticMessage = message,
+    )
 
     private companion object {
         const val TAG = "MiniIviCarClient"
         const val INITIAL_RETRY_MILLIS = 1_000L
         const val MAX_RETRY_MILLIS = 30_000L
+        const val BLUETOOTH_API_VERSION = 4
         val RETRY_TOKEN = Any()
     }
+}
+
+internal object CarServiceCompatibility {
+    private const val VERSION_4 = 4
+    fun supportsRefresh(apiVersion: Int): Boolean = apiVersion >= VERSION_4
+    fun supportsBluetooth(apiVersion: Int): Boolean = apiVersion >= VERSION_4
 }
 
 internal class RetryBackoff(

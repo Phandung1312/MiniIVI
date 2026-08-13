@@ -76,6 +76,7 @@ class SystemUiViewModel(
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)
 class ControlCenterViewModel(
+    private val navigationRepository: NavigationRepository,
     private val brightnessRepository: BrightnessRepository,
     private val audioRepository: AudioRepository,
     private val hvacRepository: HvacRepository,
@@ -186,7 +187,12 @@ class ControlCenterViewModel(
         extendedControlsRepository.setQuickControl(control, enabled)
     fun showMoreClimate() { moreClimateVisible.value = true }
     fun hideMoreClimate() { moreClimateVisible.value = false }
-    fun showCamera() { cameraVisible.value = true }
+    fun openWifiSettings() = navigationRepository.openWifiSettings()
+    fun openWirelessSettings() = navigationRepository.openWirelessSettings()
+    fun openBluetoothSettings() = navigationRepository.openBluetoothSettings()
+    fun openCamera() {
+        cameraVisible.value = !navigationRepository.openCamera()
+    }
     fun hideCamera() { cameraVisible.value = false }
     fun requestScreenOff() {
         extendedControlsRepository.requestScreenOff()
@@ -220,6 +226,7 @@ class SystemUiViewModelFactory(
             SystemUiViewModel(navigationRepository) as T
         modelClass.isAssignableFrom(ControlCenterViewModel::class.java) ->
             ControlCenterViewModel(
+                navigationRepository,
                 brightnessRepository,
                 audioRepository,
                 hvacRepository,

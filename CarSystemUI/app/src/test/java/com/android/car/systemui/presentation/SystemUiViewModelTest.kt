@@ -64,7 +64,13 @@ class SystemUiViewModelTest {
         val brightness = FakeBrightnessRepository()
         val audio = FakeAudioRepository()
         val hvac = FakeHvacRepository()
-        val viewModel = ControlCenterViewModel(brightness, audio, hvac, FakeExtendedControlsRepository())
+        val viewModel = ControlCenterViewModel(
+            FakeNavigationRepository(),
+            brightness,
+            audio,
+            hvac,
+            FakeExtendedControlsRepository(),
+        )
         brightness.mutable.value = BrightnessState(progress = 0.25f, available = true)
         audio.mutable.value = AudioState(volume = 5, minimum = 0, maximum = 10, available = true)
         hvac.mutable.value = HvacState(connecting = false, available = true)
@@ -92,13 +98,48 @@ class SystemUiViewModelTest {
         assertEquals(1, audio.refreshCount)
         assertEquals(1, hvac.refreshCount)
     }
+
+    @Test
+    fun systemActionsAreDelegatedAndCameraFallsBackOnlyWhenUnavailable() {
+        val navigation = FakeNavigationRepository()
+        val viewModel = ControlCenterViewModel(
+            navigation,
+            FakeBrightnessRepository(),
+            FakeAudioRepository(),
+            FakeHvacRepository(),
+            FakeExtendedControlsRepository(),
+        )
+
+        viewModel.openWifiSettings()
+        viewModel.openWirelessSettings()
+        viewModel.openBluetoothSettings()
+        navigation.cameraAvailable = true
+        viewModel.openCamera()
+        dispatcher.scheduler.runCurrent()
+        assertFalse(viewModel.state.value.cameraVisible)
+
+        navigation.cameraAvailable = false
+        viewModel.openCamera()
+        dispatcher.scheduler.runCurrent()
+
+        assertTrue(viewModel.state.value.cameraVisible)
+        assertEquals(listOf("wifi", "wireless", "bluetooth", "camera", "camera"), navigation.actions)
+    }
 }
 
 private class FakeNavigationRepository : NavigationRepository {
     val actions = mutableListOf<String>()
+    var cameraAvailable = false
     override fun goHome() { actions += "home" }
     override fun openSettings() { actions += "settings" }
     override fun openAppList() { actions += "apps" }
+    override fun openWifiSettings() { actions += "wifi" }
+    override fun openWirelessSettings() { actions += "wireless" }
+    override fun openBluetoothSettings() { actions += "bluetooth" }
+    override fun openCamera(): Boolean {
+        actions += "camera"
+        return cameraAvailable
+    }
 }
 
 private class FakeBrightnessRepository : BrightnessRepository {

@@ -36,7 +36,7 @@ class CarServiceExtendedControlsRepository(
     ).stateIn(scope, SharingStarted.Eagerly, ExtendedControlsState())
 
     override fun start() = client.start()
-    override fun refresh() = client.start()
+    override fun refresh() { client.refreshQuickControls() }
     override fun setPower(enabled: Boolean) { client.setClimatePowerEnabled(enabled) }
     override fun setAuto(enabled: Boolean) { client.setClimateAutoEnabled(enabled) }
     override fun setSync(enabled: Boolean) { client.setClimateSyncEnabled(enabled) }
@@ -94,7 +94,7 @@ class CarServiceBrightnessRepository(
 
     override fun start() = client.start()
     override fun stop() = Unit
-    override fun refresh() = client.start()
+    override fun refresh() { client.refreshBrightness() }
 
     override suspend fun setBrightness(progress: Float) {
         client.setBrightness(progress)
@@ -119,7 +119,7 @@ class CarServiceAudioRepository(
 
     override fun start() = client.start()
     override fun stop() = Unit
-    override fun refresh() = client.start()
+    override fun refresh() { client.refreshAudio() }
     override fun setVolume(volume: Int) {
         client.setMediaVolume(volume)
     }
@@ -148,7 +148,7 @@ class CarServiceHvacRepository(
 
     override fun start() = client.start()
     override fun stop() = Unit
-    override fun refresh() = client.start()
+    override fun refresh() { client.refreshHvac() }
 
     override fun adjustTemperature(zone: ClimateZone, delta: Float) {
         val current = state.value

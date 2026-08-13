@@ -72,7 +72,6 @@ import com.android.car.systemui.data.model.ClimateZone
 import com.android.car.systemui.data.model.HvacState
 import com.android.car.systemui.data.model.TemperatureZone
 import java.util.Locale
-import kotlin.math.roundToInt
 
 @Composable
 fun NavigationRailScreen(
@@ -453,12 +452,6 @@ private fun VerticalControl(
                     tint = if (normalized > 0.78f) activeContentColor
                     else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(32.dp),
-                )
-                Text(
-                    text = stringResource(R.string.control_percentage, (normalized * 100).roundToInt()),
-                    color = if (normalized > 0.22f) activeContentColor
-                    else MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold,
                 )
             }
         }

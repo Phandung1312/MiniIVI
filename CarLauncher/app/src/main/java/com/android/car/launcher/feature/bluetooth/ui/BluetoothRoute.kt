@@ -9,14 +9,13 @@ import com.android.car.launcher.feature.bluetooth.BluetoothViewModel
 internal fun BluetoothRoute(
     viewModel: BluetoothViewModel,
     onBack: () -> Unit,
-    onEnable: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
 
     BluetoothScreen(
         state = state,
         onBack = onBack,
-        onEnable = onEnable,
+        onEnable = viewModel::enable,
         onScan = viewModel::startDiscovery,
         onRename = viewModel::renameLocalDevice,
     )

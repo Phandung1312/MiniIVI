@@ -14,7 +14,6 @@
     <string name="control_volume">Volume</string>
     <string name="control_brightness">Brightness</string>
     <string name="control_close">Close Control Center</string>
-    <string name="control_percentage">%1$d%%</string>
     <string name="climate_waiting">Connecting to climate…</string>
     <string name="climate_unavailable">HVAC data unavailable</string>
     <string name="climate_cabin_value">Cabin %1$s</string>

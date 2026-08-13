@@ -2,5 +2,8 @@
 <exceptions>
     <exception package="com.miniivi.car.service">
         <permission name="android.car.permission.CAR_ENERGY" fixed="true" />
+        <permission name="android.permission.BLUETOOTH_CONNECT" fixed="true" />
+        <permission name="android.permission.BLUETOOTH_SCAN" fixed="true" />
+        <permission name="android.permission.ACCESS_FINE_LOCATION" fixed="true" />
     </exception>
 </exceptions>

@@ -60,6 +60,7 @@ class HomeActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Log.d(tag, "onResume")
+        viewModel.refresh()
     }
 
     override fun onPause() {

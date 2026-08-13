@@ -2,11 +2,12 @@ package com.android.car.launcher.feature.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.android.car.launcher.feature.media.MediaRepository
+import com.android.car.launcher.feature.media.MediaController
 import com.android.car.launcher.feature.media.MediaState
+import com.android.car.launcher.feature.dashboard.repository.HvacRepository
+import com.android.car.launcher.feature.dashboard.repository.VehicleRepository
 import com.miniivi.car.api.HvacState
 import com.miniivi.car.api.VehicleStatusState
-import com.miniivi.car.client.MiniIviCarClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,19 +23,21 @@ data class DashboardUiState(
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val mediaRepository: MediaRepository,
-    private val carClient: MiniIviCarClient,
+    private val mediaRepository: MediaController,
+    private val hvacRepository: HvacRepository,
+    private val vehicleRepository: VehicleRepository,
 ) : ViewModel() {
     val state = combine(
         mediaRepository.state,
-        carClient.hvacState,
-        carClient.vehicleStatusState,
+        hvacRepository.state,
+        vehicleRepository.state,
         ::DashboardUiState,
     )
         .stateIn(viewModelScope, SharingStarted.Eagerly, DashboardUiState())
 
     init {
-        carClient.start()
+        hvacRepository.start()
+        vehicleRepository.start()
         viewModelScope.launch { mediaRepository.loadSongs() }
     }
 
@@ -42,8 +45,8 @@ class DashboardViewModel @Inject constructor(
     fun onNext() = mediaRepository.playNext()
     fun onPrevious() = mediaRepository.playPrevious()
 
-    override fun onCleared() {
-        carClient.close()
-        super.onCleared()
+    fun refresh() {
+        hvacRepository.refresh()
+        vehicleRepository.refresh()
     }
 }

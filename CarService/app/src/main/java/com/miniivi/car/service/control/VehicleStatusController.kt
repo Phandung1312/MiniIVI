@@ -77,6 +77,21 @@ class VehicleStatusController(
         )
     }
 
+    fun refresh() {
+        scope.launch {
+            if (propertyManager == null) return@launch
+            runCatching {
+                batteryLevel = readFloatOrNull(EV_BATTERY_LEVEL)
+                batteryCapacity = readFloatOrNull(EV_CURRENT_BATTERY_CAPACITY)
+                    ?: readFloatOrNull(INFO_EV_BATTERY_CAPACITY)
+                refreshState()
+            }.onFailure { error ->
+                Log.e(TAG, "Unable to refresh vehicle status", error)
+                publishUnavailable(error.message)
+            }
+        }
+    }
+
     private fun startConnectionLoop() {
         connectionJob?.cancel()
         connectionJob = scope.launch {

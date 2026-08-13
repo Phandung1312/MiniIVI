@@ -9,6 +9,7 @@
         <permission name="android.permission.MANAGE_USERS" />
         <permission name="android.permission.CONTROL_DISPLAY_BRIGHTNESS" />
         <permission name="android.permission.BLUETOOTH_PRIVILEGED" />
+        <permission name="android.permission.LOCAL_MAC_ADDRESS" />
         <permission name="android.permission.TETHER_PRIVILEGED" />
         <permission name="android.permission.NETWORK_SETTINGS" />
         <permission name="android.permission.DEVICE_POWER" />

@@ -1,7 +1,5 @@
 package com.miniivi.car.service.control
 
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -21,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 internal enum class QuickControlBackend { REAL, MOCK }
@@ -35,13 +34,12 @@ internal object QuickControlsPolicy {
 class QuickControlsController(
     context: Context,
     private val scope: CoroutineScope,
+    private val bluetoothController: BluetoothController,
 ) {
     private val applicationContext = context.applicationContext
     private val preferences = applicationContext.createDeviceProtectedStorageContext()
         .getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
     private val wifiManager = applicationContext.getSystemService(WifiManager::class.java)
-    private val bluetoothAdapter = applicationContext
-        .getSystemService(BluetoothManager::class.java)?.adapter
     private val tetheringManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         applicationContext.getSystemService(TetheringManager::class.java)
     } else {
@@ -62,11 +60,23 @@ class QuickControlsController(
         }
     }
 
+    init {
+        scope.launch {
+            bluetoothController.state.collect { bluetooth ->
+                mutableState.update {
+                    it.copy(
+                        bluetoothEnabled = bluetooth.enabled,
+                        realCapabilities = realCapabilities(),
+                    )
+                }
+            }
+        }
+    }
+
     fun start() {
         if (!receiverRegistered) {
             val filter = IntentFilter().apply {
                 addAction(WifiManager.WIFI_STATE_CHANGED_ACTION)
-                addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 applicationContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -85,6 +95,7 @@ class QuickControlsController(
     }
 
     fun refresh() {
+        bluetoothController.refresh()
         val capabilities = realCapabilities()
         mutableState.update { current ->
             current.copy(
@@ -93,9 +104,7 @@ class QuickControlsController(
                 wifiEnabled = if (capabilities and QuickControl.WIFI_CAPABILITY != 0L) {
                     runCatching { wifiManager?.isWifiEnabled == true }.getOrDefault(current.wifiEnabled)
                 } else current.wifiEnabled,
-                bluetoothEnabled = if (capabilities and QuickControl.BLUETOOTH_CAPABILITY != 0L) {
-                    runCatching { bluetoothAdapter?.isEnabled == true }.getOrDefault(current.bluetoothEnabled)
-                } else current.bluetoothEnabled,
+                bluetoothEnabled = bluetoothController.state.value.enabled,
                 realCapabilities = capabilities,
                 errorCode = CarServiceError.NONE,
                 diagnosticMessage = null,
@@ -136,19 +145,20 @@ class QuickControlsController(
     }
 
     private fun setBluetoothEnabled(enabled: Boolean) {
-        val adapter = bluetoothAdapter
-        if (QuickControlsPolicy.backend(adapter != null) == QuickControlBackend.MOCK) {
-            updatePersisted(QuickControl.BLUETOOTH, enabled)
+        if (!bluetoothController.state.value.supported) {
+            publishFailure(
+                "Unable to change Bluetooth state",
+                IllegalStateException("Bluetooth is not supported"),
+            )
             return
         }
-        val realAdapter = checkNotNull(adapter)
         scope.launch {
-            runCatching {
-                @Suppress("DEPRECATION")
-                val accepted = if (enabled) realAdapter.enable() else realAdapter.disable()
-                check(accepted) { "Bluetooth request was rejected" }
-            }.onSuccess { updateState(QuickControl.BLUETOOTH, enabled, persist = false) }
-                .onFailure { publishFailure("Unable to change Bluetooth state", it) }
+            if (!bluetoothController.setEnabled(enabled)) {
+                publishFailure(
+                    "Unable to change Bluetooth state",
+                    IllegalStateException("Bluetooth request was rejected"),
+                )
+            }
         }
     }
 
@@ -219,7 +229,7 @@ class QuickControlsController(
         status = FeatureStatus.READY,
         available = true,
         wifiEnabled = preferences.getBoolean(key(QuickControl.WIFI), false),
-        bluetoothEnabled = preferences.getBoolean(key(QuickControl.BLUETOOTH), false),
+        bluetoothEnabled = bluetoothController.state.value.enabled,
         hotspotEnabled = preferences.getBoolean(key(QuickControl.HOTSPOT), false),
         valetModeEnabled = preferences.getBoolean(key(QuickControl.VALET_MODE), false),
         realCapabilities = realCapabilities(),
@@ -228,7 +238,7 @@ class QuickControlsController(
     private fun realCapabilities(): Long {
         var result = 0L
         if (wifiManager != null) result = result or QuickControl.WIFI_CAPABILITY
-        if (bluetoothAdapter != null) result = result or QuickControl.BLUETOOTH_CAPABILITY
+        if (bluetoothController.state.value.supported) result = result or QuickControl.BLUETOOTH_CAPABILITY
         if (tetheringManager != null) result = result or QuickControl.HOTSPOT_CAPABILITY
         if (goToSleepMethod != null) result = result or QuickControl.SCREEN_OFF_CAPABILITY
         return result
