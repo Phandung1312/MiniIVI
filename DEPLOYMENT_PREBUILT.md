@@ -1,8 +1,18 @@
 # Deploy the Prebuilt Bundle
 
-Start `DreamCar` with `-writable-system -no-snapshot` and make sure `adb` is available. If needed, edit the tool, serial, or emulator values at the top of `deploy_prebuilt.bat`.
+Make sure `emulator` and `adb` are available. List the installed AVDs:
 
-Run from the release root:
+```bat
+emulator -list-avds
+```
+
+Start the target AVD with a writable system image and snapshots disabled:
+
+```bat
+emulator -avd <AVD_NAME> -writable-system -no-snapshot
+```
+
+Keep the emulator open. In a second terminal, run from the release root:
 
 ```bat
 deploy_prebuilt.bat
