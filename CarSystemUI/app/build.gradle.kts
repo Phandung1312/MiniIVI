@@ -84,6 +84,7 @@ dependencies {
     // the corresponding classes are supplied by the system image at runtime.
     compileOnly(fileTree("libs/framework") { include("*.jar") })
     implementation(files("libs/framework/miniivi-framework-adapter.jar"))
+    implementation(project(":boot-brand"))
     implementation(project(":car-service-client"))
 
     implementation(libs.androidx.appcompat)

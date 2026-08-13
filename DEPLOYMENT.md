@@ -8,7 +8,7 @@ This document is the authoritative procedure for building and deploying the comp
 
 All three applications are privileged system applications. Deploy them by copying their artifacts to the appropriate system partition. **Never use `adb install` for any application in this repository.**
 
-If the three signed APKs and five permission XML files have already been packaged, use [DEPLOYMENT_PREBUILT.md](DEPLOYMENT_PREBUILT.md) instead. That procedure skips the source build and deploys directly from a self-contained prebuilt bundle.
+If the four signed APKs, five permission XML files, and two boot animation archives have already been packaged, use [DEPLOYMENT_PREBUILT.md](DEPLOYMENT_PREBUILT.md) instead. That procedure skips the source build and deploys directly from a self-contained prebuilt bundle.
 
 ## 1. Prerequisites
 
@@ -113,7 +113,7 @@ Build and test CarSystemUI:
 
 ```powershell
 Push-Location .\CarSystemUI
-.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug --console=plain --no-daemon
+.\gradlew.bat :boot-brand:test :boot-animation:check :boot-animation:assemble :boot-progress-overlay:check :app:testDebugUnitTest :app:assembleDebug --console=plain --no-daemon
 Pop-Location
 ```
 
@@ -134,6 +134,9 @@ $deploymentFiles = @(
     '.\CarService\system_ext\etc\default-permissions\default-permissions-com.miniivi.car.service.xml'
     '.\CarSystemUI\app\build\outputs\apk\debug\app-debug.apk'
     '.\CarSystemUI\system_ext\etc\permissions\privapp-permissions-com.android.car.systemui.xml'
+    '.\CarSystemUI\boot-animation\build\outputs\bootanimation\bootanimation.zip'
+    '.\CarSystemUI\boot-animation\build\outputs\bootanimation\bootanimation-dark.zip'
+    '.\CarSystemUI\boot-progress-overlay\build\outputs\boot-progress-overlay\MiniIviBootProgressOverlay.apk'
     '.\CarLauncher\app\build\outputs\apk\debug\app-debug.apk'
     '.\CarLauncher\system\etc\permissions\privapp-permissions-com.android.car.launcher.xml'
     '.\CarLauncher\system\etc\default-permissions\default-permissions-com.android.car.launcher.xml'
@@ -147,7 +150,7 @@ if ($missingFiles) {
 $deploymentFiles | Get-Item | Select-Object FullName, Length, LastWriteTime
 ```
 
-The complete deployment contains three APKs and five permission XML files.
+The complete deployment contains four APKs, five permission XML files, and two boot animation ZIP files.
 
 ## 4. Prepare the System Partitions
 
@@ -159,13 +162,13 @@ adb wait-for-device
 adb remount
 ```
 
-`adb remount` must report success for `/system` and `/system_ext`. Verify the active mounts:
+`adb remount` must report success for `/system`, `/system_ext`, and `/product`. Verify the active mounts:
 
 ```powershell
-adb shell "mount | grep -E ' /system | /system_ext '"
+adb shell "mount | grep -E ' /system | /system_ext | /product '"
 ```
 
-On a writable emulator, the output normally includes overlay mount entries for both partitions. The successful `adb remount` result and a subsequent test push are the authoritative checks that the overlay accepts writes.
+On a writable emulator, the output normally includes overlay mount entries for all three partitions. The successful `adb remount` result and a subsequent test push are the authoritative checks that the overlay accepts writes.
 
 Inspect the package locations currently known to Package Manager:
 
@@ -197,6 +200,8 @@ adb shell "mkdir -p /system_ext/etc/default-permissions"
 adb shell "mkdir -p /system/priv-app"
 adb shell "mkdir -p /system/etc/permissions"
 adb shell "mkdir -p /system/etc/default-permissions"
+adb shell "mkdir -p /product/media"
+adb shell "mkdir -p /product/overlay"
 ```
 
 ### CarService
@@ -228,6 +233,36 @@ If this check fails, confirm that the directory-based APK is present and correct
 adb shell "test -f /system_ext/priv-app/CarSystemUI/CarSystemUI.apk && rm -f /system_ext/priv-app/CarSystemUI.apk"
 ```
 
+### MiniIVI boot animation
+
+Back up the original product boot animations before replacing them:
+
+```powershell
+$bootAnimationBackup = Join-Path $env:TEMP ('MiniIVI-bootanimation-backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+New-Item -ItemType Directory -Path $bootAnimationBackup | Out-Null
+adb pull /product/media/bootanimation.zip (Join-Path $bootAnimationBackup 'bootanimation.zip')
+adb pull /product/media/bootanimation-dark.zip (Join-Path $bootAnimationBackup 'bootanimation-dark.zip')
+```
+
+Push both MiniIVI variants so the Google animation cannot reappear when the boot theme changes:
+
+```powershell
+adb push .\CarSystemUI\boot-animation\build\outputs\bootanimation\bootanimation.zip /product/media/bootanimation.zip
+adb push .\CarSystemUI\boot-animation\build\outputs\bootanimation\bootanimation-dark.zip /product/media/bootanimation-dark.zip
+```
+
+Back up an existing MiniIVI boot-progress overlay, if present, then push the
+code-free RRO. This package replaces the framework boot-progress text while the
+CarSystemUI handoff window is starting:
+
+```powershell
+$bootOverlayBackup = Join-Path $bootAnimationBackup 'MiniIviBootProgressOverlay.apk'
+adb shell "if [ -f /product/overlay/MiniIviBootProgressOverlay.apk ]; then cp /product/overlay/MiniIviBootProgressOverlay.apk /data/local/tmp/MiniIviBootProgressOverlay.apk; fi"
+adb pull /data/local/tmp/MiniIviBootProgressOverlay.apk $bootOverlayBackup
+adb shell "rm -f /data/local/tmp/MiniIviBootProgressOverlay.apk"
+adb push .\CarSystemUI\boot-progress-overlay\build\outputs\boot-progress-overlay\MiniIviBootProgressOverlay.apk /product/overlay/MiniIviBootProgressOverlay.apk
+```
+
 ### CarLauncher
 
 ```powershell
@@ -247,9 +282,12 @@ adb shell "chmod 0644 /system_ext/etc/default-permissions/default-permissions-co
 adb shell "chmod 0644 /system_ext/etc/permissions/privapp-permissions-com.android.car.systemui.xml"
 adb shell "chmod 0644 /system/etc/permissions/privapp-permissions-com.android.car.launcher.xml"
 adb shell "chmod 0644 /system/etc/default-permissions/default-permissions-com.android.car.launcher.xml"
+adb shell "chmod 0644 /product/media/bootanimation.zip"
+adb shell "chmod 0644 /product/media/bootanimation-dark.zip"
+adb shell "chmod 0644 /product/overlay/MiniIviBootProgressOverlay.apk"
 ```
 
-Verify all eight files on the emulator before rebooting:
+Verify all eleven files on the emulator before rebooting:
 
 ```powershell
 adb shell "ls -l \
@@ -260,7 +298,10 @@ adb shell "ls -l \
   /system_ext/etc/default-permissions/default-permissions-com.miniivi.car.service.xml \
   /system_ext/etc/permissions/privapp-permissions-com.android.car.systemui.xml \
   /system/etc/permissions/privapp-permissions-com.android.car.launcher.xml \
-  /system/etc/default-permissions/default-permissions-com.android.car.launcher.xml"
+  /system/etc/default-permissions/default-permissions-com.android.car.launcher.xml \
+  /product/media/bootanimation.zip \
+  /product/media/bootanimation-dark.zip \
+  /product/overlay/MiniIviBootProgressOverlay.apk"
 ```
 
 Every file should be owned by `root`, readable by Android, and normally show mode `-rw-r--r--`.
@@ -327,14 +368,31 @@ Compare local SHA-256 values with the files on the emulator:
 Get-FileHash -Algorithm SHA256 .\CarService\app\build\outputs\apk\debug\app-debug.apk
 Get-FileHash -Algorithm SHA256 .\CarSystemUI\app\build\outputs\apk\debug\app-debug.apk
 Get-FileHash -Algorithm SHA256 .\CarLauncher\app\build\outputs\apk\debug\app-debug.apk
+Get-FileHash -Algorithm SHA256 .\CarSystemUI\boot-progress-overlay\build\outputs\boot-progress-overlay\MiniIviBootProgressOverlay.apk
 
 adb shell "sha256sum \
   /system_ext/priv-app/MiniIVICarService/MiniIVICarService.apk \
   /system_ext/priv-app/CarSystemUI/CarSystemUI.apk \
-  /system/priv-app/CarLauncher.apk"
+  /system/priv-app/CarLauncher.apk \
+  /product/overlay/MiniIviBootProgressOverlay.apk"
 ```
 
-The hashes must match in CarService, CarSystemUI, and CarLauncher order.
+The hashes must match in CarService, CarSystemUI, CarLauncher, and boot-progress RRO order.
+
+### Boot animation integrity
+
+Compare the two local boot animation hashes with the deployed product files and confirm which archive was selected during the last boot:
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\CarSystemUI\boot-animation\build\outputs\bootanimation\bootanimation.zip
+Get-FileHash -Algorithm SHA256 .\CarSystemUI\boot-animation\build\outputs\bootanimation\bootanimation-dark.zip
+adb shell "sha256sum /product/media/bootanimation.zip /product/media/bootanimation-dark.zip"
+adb logcat -d -s BootAnimation:* | Select-String -Pattern '/product/media/bootanimation'
+adb shell "cmd overlay list android | grep com.miniivi.bootprogress.overlay"
+adb logcat -d -s MiniIviBootHandoff:* | Select-String -Pattern 'visible|first frame|fail-safe'
+```
+
+The selected archive must load successfully, show the IVI intro once, and loop the horizontal shimmer without a circular loader. The RRO must be enabled, no `Android is starting…` title may appear, and the CarSystemUI handoff must remain visible until the Launcher first-frame signal removes it.
 
 ### Runtime errors
 
@@ -368,6 +426,31 @@ If remount requests a verity restart, follow the message reported by ADB, reboot
 ### Changes disappear after closing the emulator
 
 This is expected for `-writable-system`. The writable system copy is temporary and is deleted when the emulator exits. Restart the AVD with the same flags and repeat the push procedure.
+
+### The boot animation is rejected or must be restored
+
+Verify that `/product` was remounted successfully, both archives use mode `0644`, and `BootAnimation` reports loading a file under `/product/media`. To restore the files captured before deployment:
+
+```powershell
+adb push (Join-Path $bootAnimationBackup 'bootanimation.zip') /product/media/bootanimation.zip
+adb push (Join-Path $bootAnimationBackup 'bootanimation-dark.zip') /product/media/bootanimation-dark.zip
+adb shell "chmod 0644 /product/media/bootanimation.zip /product/media/bootanimation-dark.zip; sync"
+adb reboot
+```
+
+To restore the boot-progress overlay, push `$bootOverlayBackup` back when it
+exists. If no overlay existed before deployment, remove only the MiniIVI RRO,
+then sync and reboot:
+
+```powershell
+if (Test-Path -LiteralPath $bootOverlayBackup) {
+    adb push $bootOverlayBackup /product/overlay/MiniIviBootProgressOverlay.apk
+} else {
+    adb shell "rm -f /product/overlay/MiniIviBootProgressOverlay.apk"
+}
+adb shell "chmod 0644 /product/overlay/MiniIviBootProgressOverlay.apk 2>/dev/null; sync"
+adb reboot
+```
 
 ### Package Manager reports a signature or shared UID mismatch
 
@@ -439,13 +522,17 @@ Check XML syntax, file mode `0644`, partition placement, and boot logs from `Sys
 - [ ] The device completed boot and supports `adb root`.
 - [ ] All projects were built sequentially with the matching platform key.
 - [ ] All unit tests passed.
-- [ ] Three APKs and five permission XML files exist locally.
-- [ ] `/system` and `/system_ext` were remounted successfully.
+- [ ] Four APKs, five permission XML files, and two boot animation ZIP files exist locally.
+- [ ] `/system`, `/system_ext`, and `/product` were remounted successfully.
 - [ ] CarService, CarSystemUI, and CarLauncher were pushed to their exact package paths.
 - [ ] All permission and default-permission XML files were pushed to the correct partition.
-- [ ] Every pushed APK and XML has mode `0644`.
+- [ ] Both MiniIVI boot animation archives were pushed to `/product/media`.
+- [ ] The MiniIVI boot-progress RRO was pushed to `/product/overlay` and is enabled.
+- [ ] Every pushed APK, XML, and ZIP has mode `0644`.
 - [ ] No flat `/system_ext/priv-app/CarSystemUI.apk` duplicate exists.
 - [ ] The emulator was synced and rebooted.
 - [ ] Package paths, process owners, shared UID, permissions, and Binder clients were verified.
 - [ ] Local and device APK hashes match.
+- [ ] Local and device boot animation hashes match, and `BootAnimation` selected the product archive.
+- [ ] The IVI handoff remains visible until the Launcher first-frame signal, with no Android boot title or circular loader.
 - [ ] Runtime smoke tests produced no MiniIVI crash or permission error.

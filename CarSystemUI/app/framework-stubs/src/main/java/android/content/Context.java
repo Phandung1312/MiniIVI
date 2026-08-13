@@ -7,4 +7,8 @@ public abstract class Context {
     public void startActivityAsUser(Intent intent, UserHandle user) {
         throw new UnsupportedOperationException("Framework stub");
     }
+
+    public void sendBroadcastAsUser(Intent intent, UserHandle user) {
+        throw new UnsupportedOperationException("Framework stub");
+    }
 }

@@ -5,6 +5,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.view.Choreographer
+import android.view.ViewTreeObserver
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
@@ -26,6 +28,7 @@ class HomeActivity : ComponentActivity() {
     private val tag = javaClass.simpleName
     private val viewModel by viewModels<DashboardViewModel>()
     private var destination by mutableStateOf(HomeDestination.Home)
+    private val firstFrameNotifier = FirstFrameNotifier(::sendLauncherFirstFrameDrawn)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,6 +52,7 @@ class HomeActivity : ComponentActivity() {
                 )
             }
         }
+        notifyAfterFirstFrame()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -112,6 +116,47 @@ class HomeActivity : ComponentActivity() {
 
     private fun showAppUnavailable() {
         Toast.makeText(this, R.string.app_not_available, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun notifyAfterFirstFrame() {
+        val decorView = window.decorView
+        val listener = object : ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (decorView.viewTreeObserver.isAlive) {
+                    decorView.viewTreeObserver.removeOnPreDrawListener(this)
+                }
+                Choreographer.getInstance().postFrameCallback {
+                    firstFrameNotifier.notifyFrameSubmitted()
+                }
+                return true
+            }
+        }
+        decorView.viewTreeObserver.addOnPreDrawListener(listener)
+    }
+
+    private fun sendLauncherFirstFrameDrawn() {
+        val signal = Intent(ACTION_LAUNCHER_FIRST_FRAME_DRAWN)
+            .setPackage(CAR_SYSTEM_UI_PACKAGE)
+            .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+        sendBroadcast(signal)
+        reportFullyDrawn()
+        Log.i(tag, "Launcher first-frame signal sent")
+    }
+
+    private companion object {
+        const val ACTION_LAUNCHER_FIRST_FRAME_DRAWN =
+            "com.miniivi.intent.action.LAUNCHER_FIRST_FRAME_DRAWN"
+        const val CAR_SYSTEM_UI_PACKAGE = "com.android.car.systemui"
+    }
+}
+
+internal class FirstFrameNotifier(private val notify: () -> Unit) {
+    private var notified = false
+
+    fun notifyFrameSubmitted() {
+        if (notified) return
+        notified = true
+        notify()
     }
 }
 

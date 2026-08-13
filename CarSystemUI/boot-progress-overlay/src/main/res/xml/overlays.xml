@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<overlay xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        target="string/android_start_title"
+        value="@string/ivi_boot_title" />
+    <item
+        target="string/android_upgrading_title"
+        value="@string/ivi_boot_title" />
+    <item
+        target="string/android_upgrading_starting_apps"
+        value="@string/ivi_boot_message" />
+    <item
+        target="string/android_upgrading_complete"
+        value="@string/ivi_boot_message" />
+</overlay>

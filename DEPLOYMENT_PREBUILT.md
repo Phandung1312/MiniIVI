@@ -1,10 +1,10 @@
 # Deploy a Prebuilt MiniIVI Bundle to an AAOS Emulator
 
-This procedure deploys MiniIVI when the three signed APKs and five permission XML files have already been prepared. It does not require the application source trees or a Gradle build.
+This procedure deploys MiniIVI when the four signed APKs, five permission XML files, and two boot animation archives have already been prepared. It does not require the application source trees or a Gradle build.
 
 Use [DEPLOYMENT.md](DEPLOYMENT.md) when the applications must be built from source.
 
-All MiniIVI applications are privileged system applications. **Never use `adb install`.** The APKs and permission files must be copied to the writable system partitions and the emulator must be rebooted.
+All MiniIVI applications are privileged system applications. **Never use `adb install`.** The APKs, permission files, and boot animation archives must be copied to the writable system partitions and the emulator must be rebooted.
 
 ## 1. Required Bundle Layout
 
@@ -12,6 +12,12 @@ Extract the prebuilt package into a directory named `MiniIVI-prebuilt`. Its cont
 
 ```text
 MiniIVI-prebuilt/
+|-- product/
+|   |-- media/
+|   |   |-- bootanimation.zip
+|   |   `-- bootanimation-dark.zip
+|   `-- overlay/
+|       `-- MiniIviBootProgressOverlay.apk
 |-- system/
 |   |-- priv-app/
 |   |   `-- CarLauncher.apk
@@ -34,7 +40,7 @@ MiniIVI-prebuilt/
             `-- default-permissions-com.miniivi.car.service.xml
 ```
 
-The bundle must contain exactly three APKs and five XML files. The three APKs must be built from a compatible source revision and signed with the platform certificate used by the target AAOS image. All three packages declare `android.uid.system`.
+The bundle must contain exactly four APKs, five XML files, and two boot animation ZIP files. All four APKs must be built from a compatible source revision and signed with the platform certificate used by the target AAOS image. The three executable packages declare `android.uid.system`; `MiniIviBootProgressOverlay.apk` is a code-free RRO targeting `android`.
 
 Open PowerShell in the directory that contains `MiniIVI-prebuilt`, then validate the bundle before connecting to the emulator:
 
@@ -42,6 +48,9 @@ Open PowerShell in the directory that contains `MiniIVI-prebuilt`, then validate
 $bundleRoot = (Resolve-Path -LiteralPath '.\MiniIVI-prebuilt').Path
 
 $bundleFiles = @(
+    'product\media\bootanimation.zip'
+    'product\media\bootanimation-dark.zip'
+    'product\overlay\MiniIviBootProgressOverlay.apk'
     'system\priv-app\CarLauncher.apk'
     'system\etc\permissions\privapp-permissions-com.android.car.launcher.xml'
     'system\etc\default-permissions\default-permissions-com.android.car.launcher.xml'
@@ -125,6 +134,12 @@ adb wait-for-device
 adb remount
 ```
 
+Confirm that `/system`, `/system_ext`, and `/product` are writable overlay mounts:
+
+```powershell
+adb shell "mount | grep -E ' /system | /system_ext | /product '"
+```
+
 Confirm that Package Manager currently uses the expected application locations:
 
 ```powershell
@@ -155,9 +170,11 @@ adb shell "mkdir -p /system_ext/etc/default-permissions"
 adb shell "mkdir -p /system/priv-app"
 adb shell "mkdir -p /system/etc/permissions"
 adb shell "mkdir -p /system/etc/default-permissions"
+adb shell "mkdir -p /product/media"
+adb shell "mkdir -p /product/overlay"
 ```
 
-Push the three APKs:
+Push the three executable APKs:
 
 ```powershell
 adb push (Join-Path $bundleRoot 'system_ext\priv-app\MiniIVICarService\MiniIVICarService.apk') /system_ext/priv-app/MiniIVICarService/MiniIVICarService.apk
@@ -175,6 +192,27 @@ adb push (Join-Path $bundleRoot 'system\etc\permissions\privapp-permissions-com.
 adb push (Join-Path $bundleRoot 'system\etc\default-permissions\default-permissions-com.android.car.launcher.xml') /system/etc/default-permissions/default-permissions-com.android.car.launcher.xml
 ```
 
+Back up the original product boot animations, then push both MiniIVI variants:
+
+```powershell
+$bootAnimationBackup = Join-Path $env:TEMP ('MiniIVI-bootanimation-backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+New-Item -ItemType Directory -Path $bootAnimationBackup | Out-Null
+adb pull /product/media/bootanimation.zip (Join-Path $bootAnimationBackup 'bootanimation.zip')
+adb pull /product/media/bootanimation-dark.zip (Join-Path $bootAnimationBackup 'bootanimation-dark.zip')
+adb push (Join-Path $bundleRoot 'product\media\bootanimation.zip') /product/media/bootanimation.zip
+adb push (Join-Path $bundleRoot 'product\media\bootanimation-dark.zip') /product/media/bootanimation-dark.zip
+```
+
+Back up an existing MiniIVI boot-progress RRO, if present, and push the bundle RRO:
+
+```powershell
+$bootOverlayBackup = Join-Path $bootAnimationBackup 'MiniIviBootProgressOverlay.apk'
+adb shell "if [ -f /product/overlay/MiniIviBootProgressOverlay.apk ]; then cp /product/overlay/MiniIviBootProgressOverlay.apk /data/local/tmp/MiniIviBootProgressOverlay.apk; fi"
+adb pull /data/local/tmp/MiniIviBootProgressOverlay.apk $bootOverlayBackup
+adb shell "rm -f /data/local/tmp/MiniIviBootProgressOverlay.apk"
+adb push (Join-Path $bundleRoot 'product\overlay\MiniIviBootProgressOverlay.apk') /product/overlay/MiniIviBootProgressOverlay.apk
+```
+
 Apply mode `0644` to every deployed artifact:
 
 ```powershell
@@ -186,6 +224,9 @@ adb shell "chmod 0644 /system_ext/etc/default-permissions/default-permissions-co
 adb shell "chmod 0644 /system_ext/etc/permissions/privapp-permissions-com.android.car.systemui.xml"
 adb shell "chmod 0644 /system/etc/permissions/privapp-permissions-com.android.car.launcher.xml"
 adb shell "chmod 0644 /system/etc/default-permissions/default-permissions-com.android.car.launcher.xml"
+adb shell "chmod 0644 /product/media/bootanimation.zip"
+adb shell "chmod 0644 /product/media/bootanimation-dark.zip"
+adb shell "chmod 0644 /product/overlay/MiniIviBootProgressOverlay.apk"
 ```
 
 CarSystemUI must exist only at `/system_ext/priv-app/CarSystemUI/CarSystemUI.apk`. Check for a stale flat duplicate:
@@ -200,7 +241,7 @@ If the check reports a duplicate, first confirm that the directory-based APK exi
 adb shell "test -f /system_ext/priv-app/CarSystemUI/CarSystemUI.apk && rm -f /system_ext/priv-app/CarSystemUI.apk"
 ```
 
-Verify all eight deployed files:
+Verify all eleven deployed files:
 
 ```powershell
 adb shell "ls -l \
@@ -211,7 +252,10 @@ adb shell "ls -l \
   /system_ext/etc/default-permissions/default-permissions-com.miniivi.car.service.xml \
   /system_ext/etc/permissions/privapp-permissions-com.android.car.systemui.xml \
   /system/etc/permissions/privapp-permissions-com.android.car.launcher.xml \
-  /system/etc/default-permissions/default-permissions-com.android.car.launcher.xml"
+  /system/etc/default-permissions/default-permissions-com.android.car.launcher.xml \
+  /product/media/bootanimation.zip \
+  /product/media/bootanimation-dark.zip \
+  /product/overlay/MiniIviBootProgressOverlay.apk"
 ```
 
 Every file should normally be owned by `root` and show mode `-rw-r--r--`.
@@ -254,14 +298,29 @@ Compare the local and device APK hashes:
 Get-FileHash -Algorithm SHA256 (Join-Path $bundleRoot 'system_ext\priv-app\MiniIVICarService\MiniIVICarService.apk')
 Get-FileHash -Algorithm SHA256 (Join-Path $bundleRoot 'system_ext\priv-app\CarSystemUI\CarSystemUI.apk')
 Get-FileHash -Algorithm SHA256 (Join-Path $bundleRoot 'system\priv-app\CarLauncher.apk')
+Get-FileHash -Algorithm SHA256 (Join-Path $bundleRoot 'product\overlay\MiniIviBootProgressOverlay.apk')
 
 adb shell "sha256sum \
   /system_ext/priv-app/MiniIVICarService/MiniIVICarService.apk \
   /system_ext/priv-app/CarSystemUI/CarSystemUI.apk \
-  /system/priv-app/CarLauncher.apk"
+  /system/priv-app/CarLauncher.apk \
+  /product/overlay/MiniIviBootProgressOverlay.apk"
 ```
 
-The hashes must match in CarService, CarSystemUI, and CarLauncher order.
+The hashes must match in CarService, CarSystemUI, CarLauncher, and boot-progress RRO order.
+
+Compare the local and device boot animation hashes and confirm the selected product archive:
+
+```powershell
+Get-FileHash -Algorithm SHA256 (Join-Path $bundleRoot 'product\media\bootanimation.zip')
+Get-FileHash -Algorithm SHA256 (Join-Path $bundleRoot 'product\media\bootanimation-dark.zip')
+adb shell "sha256sum /product/media/bootanimation.zip /product/media/bootanimation-dark.zip"
+adb logcat -d -s BootAnimation:* | Select-String -Pattern '/product/media/bootanimation'
+adb shell "cmd overlay list android | grep com.miniivi.bootprogress.overlay"
+adb logcat -d -s MiniIviBootHandoff:* | Select-String -Pattern 'visible|first frame|fail-safe'
+```
+
+The selected archive must load successfully, show the IVI intro once, and loop the horizontal shimmer without a circular loader. The RRO must be enabled, no `Android is starting…` title may appear, and the CarSystemUI handoff must remain visible until the Launcher first-frame signal removes it.
 
 Clear old logs, exercise the Launcher, Control Center, HVAC, brightness, audio, and Bluetooth features, then inspect errors:
 
@@ -285,5 +344,8 @@ The deployment is valid only when all three package paths are correct, the APK h
 - If Package Manager reports a signature or shared UID mismatch, obtain a bundle signed with the platform key for that exact system image. Wipe or recreate the AVD when stale UID or certificate state cannot be migrated safely.
 - If permission XML files are ignored, verify their partition, filename, mode `0644`, and reboot the emulator.
 - If changes disappear after closing the emulator, restart it in writable mode and deploy the bundle again. Writable overlays are temporary.
+- If the boot animation is rejected or Android displays the previous animation, verify that both product ZIP files are mode `0644`, contain only stored entries, and were pushed after a successful `/product` remount.
+- To restore the original boot animation, push both ZIP files from `$bootAnimationBackup` back to `/product/media`, set mode `0644`, sync, and reboot.
+- To restore the boot-progress overlay, push `$bootOverlayBackup` back when it exists; otherwise remove only `/product/overlay/MiniIviBootProgressOverlay.apk`, sync, and reboot.
 - If Package Manager reports duplicate CarSystemUI packages, keep `/system_ext/priv-app/CarSystemUI/CarSystemUI.apk` and remove only `/system_ext/priv-app/CarSystemUI.apk`.
 - If Bluetooth runtime permissions are missing for an existing AAOS user, inspect `cmd user list` and the CarService package state. The complete recovery procedure is documented in [DEPLOYMENT.md](DEPLOYMENT.md#bluetooth-permissions-are-declared-but-unavailable).

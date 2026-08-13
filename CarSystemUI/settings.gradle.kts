@@ -23,6 +23,13 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "CarSystemUI"
-include(":app", ":car-service-api", ":car-service-client")
+include(
+    ":app",
+    ":boot-animation",
+    ":boot-brand",
+    ":boot-progress-overlay",
+    ":car-service-api",
+    ":car-service-client",
+)
 project(":car-service-api").projectDir = file("../CarService/api")
 project(":car-service-client").projectDir = file("../CarService/client")
