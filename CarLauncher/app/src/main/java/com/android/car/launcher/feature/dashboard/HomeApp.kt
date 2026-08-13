@@ -24,6 +24,7 @@ internal enum class HomeAppIcon {
 internal sealed interface HomeAppTarget {
     data object Media : HomeAppTarget
     data object Bluetooth : HomeAppTarget
+    data object Maps : HomeAppTarget
     data class Packages(val launchers: List<PackageLaunch>) : HomeAppTarget
     data object Dialer : HomeAppTarget
     data object Browser : HomeAppTarget
@@ -74,15 +75,7 @@ internal object HomeAppCatalog {
             id = "maps",
             titleRes = R.string.maps,
             icon = HomeAppIcon.Maps,
-            target = HomeAppTarget.Packages(
-                listOf(
-                    PackageLaunch(packageName = "com.google.android.apps.maps"),
-                    PackageLaunch(
-                        packageName = "com.android.car.mapsplaceholder",
-                        category = "android.intent.category.APP_MAPS",
-                    ),
-                ),
-            ),
+            target = HomeAppTarget.Maps,
         ),
         HomeApp(
             id = "phone",

@@ -7,11 +7,11 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="com.miniivi.car.permission.CONTROL" />
+    <uses-permission android:name="com.miniivi.maps.permission.BIND_MAP_PREVIEW" />
 
     <queries>
         <package android:name="com.google.android.youtube" />
-        <package android:name="com.google.android.apps.maps" />
-        <package android:name="com.android.car.mapsplaceholder" />
+        <package android:name="com.miniivi.maps" />
     </queries>
 
     <application
@@ -36,6 +36,5 @@
         <activity
             android:name=".feature.bluetooth.BluetoothActivity"
             android:exported="false" />
-
     </application>
 </manifest>

@@ -4,11 +4,6 @@
 *.ipr
 *.iws
 
-# Agent and release-workspace files
-/.agents/
-/AGENTS.md
-/tmp/
-
 # Gradle
 .gradle/
 build/
@@ -33,6 +28,7 @@ captures/
 
 # Kotlin/Java generated files
 *.class
+.kotlin/
 out/
 
 # OS/editor files
@@ -40,3 +36,6 @@ out/
 Thumbs.db
 *.swp
 *.swo
+
+# Temporary files
+tmp/

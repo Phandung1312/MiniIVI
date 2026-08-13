@@ -19,6 +19,7 @@ import com.android.car.launcher.core.navigation.AppDestination
 import com.android.car.launcher.core.navigation.navigateTo
 import com.android.car.launcher.core.ui.MiniIviTheme
 import com.android.car.launcher.feature.dashboard.ui.HomeScreen
+import com.android.car.launcher.feature.maps.MapLaunchResolver
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -72,6 +73,9 @@ class HomeActivity : ComponentActivity() {
         when (val target = app.target) {
             HomeAppTarget.Media -> navigateTo(AppDestination.Media)
             HomeAppTarget.Bluetooth -> navigateTo(AppDestination.Bluetooth)
+            HomeAppTarget.Maps -> {
+                if (!launch(MapLaunchResolver.resolve())) showAppUnavailable()
+            }
             is HomeAppTarget.Packages -> {
                 val intent = target.launchers.firstNotNullOfOrNull(::resolvePackageLaunch)
                 if (intent == null || !launch(intent)) showAppUnavailable()
@@ -113,6 +117,7 @@ class HomeActivity : ComponentActivity() {
     private fun showAppUnavailable() {
         Toast.makeText(this, R.string.app_not_available, Toast.LENGTH_SHORT).show()
     }
+
 }
 
 internal enum class HomeDestination { Home, Apps }

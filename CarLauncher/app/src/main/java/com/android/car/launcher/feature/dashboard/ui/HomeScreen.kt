@@ -1,7 +1,9 @@
 package com.android.car.launcher.feature.dashboard.ui
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -24,13 +26,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.BatteryFull
-import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.CloudOff
-import androidx.compose.material.icons.rounded.DeviceThermostat
-import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -38,9 +35,6 @@ import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
-import androidx.compose.material.icons.rounded.Route
-import androidx.compose.material.icons.rounded.TireRepair
-import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -53,12 +47,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -70,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.android.car.launcher.R
 import com.android.car.launcher.core.ui.MiniIviCard
 import com.android.car.launcher.core.ui.MiniIviColors
@@ -79,6 +72,8 @@ import com.android.car.launcher.feature.dashboard.HomeApp
 import com.android.car.launcher.feature.dashboard.HomeAppIcon
 import com.android.car.launcher.feature.dashboard.HomeDestination
 import com.android.car.launcher.feature.media.MediaState
+import com.android.car.launcher.feature.maps.MapPreviewHostView
+import com.android.car.launcher.feature.maps.MapPreviewUiState
 import com.miniivi.car.api.FeatureStatus
 import com.miniivi.car.api.HvacState
 import com.miniivi.car.api.VehicleStatusState
@@ -97,6 +92,7 @@ internal fun HomeScreen(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
+    mapPreviewContent: @Composable () -> Unit = { MapPreviewPane() },
 ) {
     MiniIviScaffold {
         when (destination) {
@@ -107,6 +103,7 @@ internal fun HomeScreen(
                 onPlayPause = onPlayPause,
                 onNext = onNext,
                 onPrevious = onPrevious,
+                mapPreviewContent = mapPreviewContent,
             )
             HomeDestination.Apps -> AppDrawer(
                 apps = apps,
@@ -125,6 +122,7 @@ private fun Dashboard(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
+    mapPreviewContent: @Composable () -> Unit,
 ) {
     val clock = rememberHomeClock()
     val weatherApp = apps.first { it.id == "weather" }
@@ -182,6 +180,7 @@ private fun Dashboard(
                             .fillMaxHeight()
                             .testTag("map_card"),
                         onClick = { onAppClick(mapsApp) },
+                        mapPreviewContent = mapPreviewContent,
                     )
                     DashboardVehicleStatus(
                         hvac = state.hvac,
@@ -366,68 +365,79 @@ private fun PlaybackIcon(
 }
 
 @Composable
-private fun MapCard(modifier: Modifier, onClick: () -> Unit) {
+private fun MapCard(
+    modifier: Modifier,
+    onClick: () -> Unit,
+    mapPreviewContent: @Composable () -> Unit,
+) {
     MiniIviCard(modifier = modifier, onClick = onClick) {
-        Box(Modifier.fillMaxSize().padding(24.dp)) {
-            Column(Modifier.align(Alignment.TopStart)) {
+        Box(Modifier.fillMaxSize()) { mapPreviewContent() }
+    }
+}
+
+@Composable
+private fun MapPreviewPane() {
+    var state by remember { mutableStateOf(MapPreviewUiState.CONNECTING) }
+    Box(Modifier.fillMaxSize()) {
+        AndroidView(
+            factory = { context ->
+                MapPreviewHostView(context).apply { onStateChanged = { state = it } }
+            },
+            update = { host -> host.onStateChanged = { state = it } },
+            modifier = Modifier.fillMaxSize().testTag("map_preview_surface"),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("map_preview_overlay")
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0x66201A29),
+                            Color.Transparent,
+                            Color(0x2615121C),
+                        ),
+                    ),
+                ),
+        )
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(18.dp)
+                .testTag("map_preview_badge"),
+            color = MiniIviColors.SurfaceRaised.copy(alpha = 0.76f),
+            border = BorderStroke(1.dp, MiniIviColors.GlassHighlight),
+            shape = RoundedCornerShape(14.dp),
+        ) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                 Text(
                     text = stringResource(R.string.navigation_preview),
-                    color = MiniIviColors.TextPrimary,
-                    fontSize = 20.sp,
+                    color = Color.White,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text(
-                    text = stringResource(R.string.open_maps),
-                    color = MiniIviColors.TextSecondary,
-                    fontSize = 14.sp,
-                )
-            }
-            Canvas(Modifier.fillMaxSize().padding(top = 46.dp, start = 24.dp, end = 18.dp)) {
-                val route = Path().apply {
-                    moveTo(size.width * 0.06f, size.height * 0.76f)
-                    cubicTo(
-                        size.width * 0.30f,
-                        size.height * 0.18f,
-                        size.width * 0.48f,
-                        size.height * 0.88f,
-                        size.width * 0.70f,
-                        size.height * 0.40f,
-                    )
-                    cubicTo(
-                        size.width * 0.80f,
-                        size.height * 0.18f,
-                        size.width * 0.88f,
-                        size.height * 0.32f,
-                        size.width * 0.94f,
-                        size.height * 0.10f,
+                mapPreviewStatus(state)?.let { status ->
+                    Text(
+                        text = status,
+                        color = Color.White.copy(alpha = 0.82f),
+                        fontSize = 12.sp,
                     )
                 }
-                drawPath(
-                    route,
-                    brush = Brush.linearGradient(
-                        listOf(MiniIviColors.Primary, MiniIviColors.Secondary),
-                    ),
-                    style = Stroke(width = 10.dp.toPx(), cap = StrokeCap.Round),
-                )
-                drawCircle(
-                    color = MiniIviColors.Primary,
-                    radius = 10.dp.toPx(),
-                    center = Offset(size.width * 0.06f, size.height * 0.76f),
-                )
-                drawCircle(
-                    color = MiniIviColors.Secondary,
-                    radius = 12.dp.toPx(),
-                    center = Offset(size.width * 0.94f, size.height * 0.10f),
-                )
             }
-            Icon(
-                Icons.Rounded.Map,
-                contentDescription = null,
-                tint = MiniIviColors.Primary,
-                modifier = Modifier.align(Alignment.TopEnd).size(34.dp),
-            )
         }
     }
+}
+
+@Composable
+private fun mapPreviewStatus(state: MapPreviewUiState): String? = when (state) {
+    MapPreviewUiState.CONNECTING -> stringResource(R.string.map_preview_connecting)
+    MapPreviewUiState.LOCATING -> stringResource(R.string.map_preview_locating)
+    MapPreviewUiState.READY -> null
+    MapPreviewUiState.LAST_KNOWN -> stringResource(R.string.map_preview_last_known)
+    MapPreviewUiState.LOCATION_UNAVAILABLE ->
+        stringResource(R.string.map_preview_location_unavailable)
+    MapPreviewUiState.TILE_UNAVAILABLE -> stringResource(R.string.map_preview_tiles_unavailable)
+    MapPreviewUiState.UNAVAILABLE -> stringResource(R.string.map_preview_unavailable)
 }
 
 @Composable
@@ -462,108 +472,114 @@ private fun DashboardVehicleStatus(
     } else {
         stringResource(R.string.tires_low)
     }
-    Box(
-        modifier = modifier
-            .testTag("vehicle_background")
-            .semantics {
-                contentDescription = "$status, $battery, $cabinTemperature, $outside, $range, $tires, $tireHealth, $acStatus"
-            },
+    val cardShape = RoundedCornerShape(24.dp)
+    Column(
+        modifier = modifier.testTag("vehicle_column"),
     ) {
-        DashboardRouteDecoration(
-            Modifier
-                .fillMaxSize()
-                .padding(
-                    start = if (compact) 12.dp else 24.dp,
-                    top = if (compact) 12.dp else 24.dp,
-                    end = if (compact) 12.dp else 18.dp,
-                    bottom = if (compact) 8.dp else 12.dp,
-                ),
-        )
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    horizontal = if (compact) 16.dp else 24.dp,
-                    vertical = if (compact) 16.dp else 22.dp,
-                ),
+                .fillMaxWidth()
+                .height(if (compact) 204.dp else 248.dp)
+                .testTag("vehicle_background")
+                .semantics {
+                    contentDescription = "$status, $battery, $cabinTemperature, $outside, $range, $tires, $tireHealth, $acStatus"
+                }
+                .shadow(
+                    elevation = 8.dp,
+                    shape = cardShape,
+                    ambientColor = MiniIviColors.GlassShadow,
+                    spotColor = MiniIviColors.GlassShadow,
+                )
+                .background(VehicleCeramicCardBrush, cardShape)
+                .border(1.dp, VehicleCeramicBorder, cardShape)
+                .clip(cardShape),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Rounded.DirectionsCar,
-                    contentDescription = null,
-                    tint = MiniIviColors.Primary,
-                    modifier = Modifier.size(28.dp),
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = stringResource(R.string.vehicle_status),
-                    color = MiniIviColors.TextPrimary,
-                    fontSize = if (compact) 15.sp else 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
-            Text(
-                text = status,
-                color = MiniIviColors.TextSecondary,
-                fontSize = if (compact) 11.sp else 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
-            Surface(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("vehicle_metrics_panel"),
-                shape = RoundedCornerShape(if (compact) 20.dp else 26.dp),
-                color = MiniIviColors.Surface.copy(alpha = 0.58f),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    MiniIviColors.Border.copy(alpha = 0.7f),
-                ),
-            ) {
-                Column(
-                    modifier = Modifier.padding(
-                        horizontal = if (compact) 10.dp else 16.dp,
-                        vertical = if (compact) 8.dp else 12.dp,
+                    .fillMaxSize()
+                    .padding(
+                        horizontal = if (compact) 12.dp else 16.dp,
+                        vertical = if (compact) 10.dp else 16.dp,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 6.dp),
+            ) {
+                Row(
+                    modifier = Modifier.height(if (compact) 40.dp else 52.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_vehicle_status_car),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .size(if (compact) 38.dp else 50.dp)
+                            .testTag("vehicle_header_icon"),
+                    )
+                    Spacer(Modifier.width(if (compact) 9.dp else 12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.vehicle_status),
+                            color = MiniIviColors.TextPrimary,
+                            fontSize = if (compact) 15.sp else 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = status,
+                            color = MiniIviColors.TextSecondary,
+                            fontSize = if (compact) 10.sp else 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(if (compact) 6.dp else 10.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .testTag("vehicle_metrics_panel"),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+                    ) {
                         VehicleMetricTile(
-                            icon = Icons.Rounded.BatteryFull,
+                            icon = R.drawable.ic_vehicle_status_battery,
                             label = stringResource(R.string.vehicle_battery),
                             value = battery,
                             compact = compact,
                             tag = "battery",
                         )
                         VehicleMetricTile(
-                            icon = Icons.Rounded.DeviceThermostat,
+                            icon = R.drawable.ic_vehicle_status_cabin,
                             label = stringResource(R.string.vehicle_cabin),
                             value = cabinTemperature,
                             compact = compact,
                             tag = "cabin",
                         )
                         VehicleMetricTile(
-                            icon = Icons.Rounded.WbSunny,
+                            icon = R.drawable.ic_vehicle_status_outside,
                             label = stringResource(R.string.vehicle_outside),
                             value = outside,
                             compact = compact,
                             tag = "outside",
                         )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+                    ) {
                         VehicleMetricTile(
-                            icon = Icons.Rounded.Route,
+                            icon = R.drawable.ic_vehicle_status_range,
                             label = stringResource(R.string.vehicle_range),
                             value = range,
                             compact = compact,
                             tag = "range",
                         )
                         VehicleMetricTile(
-                            icon = Icons.Rounded.TireRepair,
+                            icon = R.drawable.ic_vehicle_status_tires,
                             label = stringResource(R.string.vehicle_tires),
                             value = tires,
                             supporting = tireHealth,
@@ -572,7 +588,7 @@ private fun DashboardVehicleStatus(
                             tag = "tires",
                         )
                         VehicleMetricTile(
-                            icon = Icons.Rounded.AcUnit,
+                            icon = R.drawable.ic_vehicle_status_climate,
                             label = stringResource(R.string.vehicle_climate),
                             value = acStatus,
                             compact = compact,
@@ -581,14 +597,27 @@ private fun DashboardVehicleStatus(
                     }
                 }
             }
+        }
+        Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(0.76f)
+                    .height(if (compact) 42.dp else 64.dp)
+                    .background(VehicleGroundGlowBrush, CircleShape),
+            )
             Image(
                 painter = painterResource(R.drawable.home_vehicle_premium),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxWidth(if (compact) 0.92f else 0.90f)
-                    .weight(1.18f)
-                    .align(Alignment.End)
+                    .fillMaxSize()
+                    .align(Alignment.BottomEnd)
                     .testTag("vehicle_image"),
             )
         }
@@ -597,7 +626,7 @@ private fun DashboardVehicleStatus(
 
 @Composable
 private fun RowScope.VehicleMetricTile(
-    icon: ImageVector,
+    icon: Int,
     label: String,
     value: String,
     compact: Boolean,
@@ -605,19 +634,31 @@ private fun RowScope.VehicleMetricTile(
     supporting: String? = null,
     warning: Boolean = false,
 ) {
+    val shape = RoundedCornerShape(if (compact) 14.dp else 18.dp)
     Row(
         modifier = Modifier
             .weight(1f)
-            .height(if (compact) 54.dp else 68.dp)
+            .fillMaxHeight()
+            .shadow(3.dp, shape, ambientColor = VehicleTileShadow, spotColor = VehicleTileShadow)
+            .background(VehicleCeramicTileBrush, shape)
+            .border(
+                1.dp,
+                if (warning) VehicleWarning.copy(alpha = 0.82f) else VehicleCeramicTileBorder,
+                shape,
+            )
+            .clip(shape)
+            .padding(horizontal = if (compact) 6.dp else 9.dp)
             .testTag("vehicle_metric_$tag"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
     ) {
-        Icon(
-            imageVector = icon,
+        Image(
+            painter = painterResource(icon),
             contentDescription = null,
-            tint = if (warning) VehicleWarning else MiniIviColors.Primary,
-            modifier = Modifier.size(if (compact) 18.dp else 22.dp),
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .size(if (compact) 30.dp else 36.dp)
+                .testTag("vehicle_metric_icon_$tag"),
         )
         Column(Modifier.weight(1f)) {
             Text(
@@ -648,51 +689,30 @@ private fun RowScope.VehicleMetricTile(
 }
 
 private val VehicleWarning = Color(0xFFC35B6E)
-
-@Composable
-private fun DashboardRouteDecoration(modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val route = Path().apply {
-            moveTo(size.width * 0.48f, size.height * 0.88f)
-            cubicTo(
-                size.width * 0.62f,
-                size.height * 0.64f,
-                size.width * 0.70f,
-                size.height * 0.98f,
-                size.width * 0.84f,
-                size.height * 0.62f,
-            )
-            cubicTo(
-                size.width * 0.90f,
-                size.height * 0.45f,
-                size.width * 0.94f,
-                size.height * 0.60f,
-                size.width * 0.98f,
-                size.height * 0.30f,
-            )
-        }
-        drawPath(
-            route,
-            brush = Brush.linearGradient(
-                listOf(
-                    MiniIviColors.Primary.copy(alpha = 0.14f),
-                    MiniIviColors.Secondary.copy(alpha = 0.16f),
-                ),
-            ),
-            style = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round),
-        )
-        drawCircle(
-            color = MiniIviColors.Primary.copy(alpha = 0.25f),
-            radius = 8.dp.toPx(),
-            center = Offset(size.width * 0.48f, size.height * 0.88f),
-        )
-        drawCircle(
-            color = MiniIviColors.Secondary.copy(alpha = 0.30f),
-            radius = 9.dp.toPx(),
-            center = Offset(size.width * 0.98f, size.height * 0.30f),
-        )
-    }
-}
+private val VehicleCeramicBorder = Color.White.copy(alpha = 0.28f)
+private val VehicleCeramicTileBorder = Color.White.copy(alpha = 0.15f)
+private val VehicleTileShadow = Color.Black.copy(alpha = 0.38f)
+private val VehicleCeramicCardBrush = Brush.linearGradient(
+    listOf(
+        MiniIviColors.SurfaceRaised,
+        MiniIviColors.Surface,
+        Color(0xFF3A3046),
+    ),
+)
+private val VehicleCeramicTileBrush = Brush.verticalGradient(
+    listOf(
+        MiniIviColors.SurfaceRaised.copy(alpha = 0.72f),
+        Color(0xFF4A3E59),
+        Color(0xFF2A2435),
+    ),
+)
+private val VehicleGroundGlowBrush = Brush.radialGradient(
+    listOf(
+        MiniIviColors.Primary.copy(alpha = 0.30f),
+        MiniIviColors.Secondary.copy(alpha = 0.10f),
+        Color.Transparent,
+    ),
+)
 
 @Composable
 private fun AppDrawer(

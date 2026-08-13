@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">MiniIVI Maps</string>
+    <string name="back">Back</string>
+    <string name="my_location">My location</string>
+    <string name="retry">Retry</string>
+    <string name="map_load_failed">Unable to load the map</string>
+    <string name="map_external_link_blocked">This link is not available in Maps</string>
+    <string name="location_permission_required">Location permission is required to show your position</string>
+    <string name="location_unavailable">Current location is unavailable</string>
+</resources>

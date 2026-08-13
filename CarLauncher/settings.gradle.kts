@@ -14,6 +14,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "CarLauncher"
-include(":app", ":car-service-api", ":car-service-client")
+include(":app", ":map-preview-contract", ":car-service-api", ":car-service-client")
+project(":map-preview-contract").projectDir = file("../MiniIviMaps/contract")
 project(":car-service-api").projectDir = file("../CarService/api")
 project(":car-service-client").projectDir = file("../CarService/client")

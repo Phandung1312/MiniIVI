@@ -57,7 +57,7 @@ Build on Windows with Android Studio's bundled JDK:
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
-.\gradlew.bat :app:assembleDebug
+.\gradlew.bat :boot-brand:test :boot-animation:check :boot-progress-overlay:check :app:testDebugUnitTest :app:assembleDebug
 ```
 
 The climate controls require a privileged-permission allowlist. When the APK is
@@ -72,7 +72,24 @@ The allowlist XML must be placed on the same partition as the privileged APK.
 After copying both files, reboot the device; Android reads privapp allowlists
 during system startup.
 
-## 4. SystemUI architecture and Control Center
+## 4. Boot experience
+
+The boot pipeline uses three coordinated artifacts:
+
+- `:boot-brand` supplies the IVI geometry, colors, and shimmer timing.
+- `:boot-animation` generates deterministic standard and dark archives for
+  `/product/media`.
+- `:boot-progress-overlay` produces the code-free, platform-signed RRO for
+  `/product/overlay/MiniIviBootProgressOverlay.apk`.
+
+The native animation shows the IVI intro over 3 seconds and a 2.4-second
+horizontal shimmer.
+After it exits, Android keeps its framework boot-progress spinner and the RRO
+changes its title to `IVI is starting`. CarSystemUI does not add a separate boot
+handoff window. The RRO changes only framework boot-progress strings; it does
+not replace shared progress-dialog layouts or spinner drawables.
+
+## 5. SystemUI architecture and Control Center
 
 The runtime UI is implemented with Kotlin and Jetpack Compose. A process-scoped
 dependency container supplies platform repositories to AndroidX ViewModels,
