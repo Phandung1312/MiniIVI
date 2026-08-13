@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<permissions>
+    <privapp-permissions package="com.android.car.systemui">
+        <!-- Retained for upgrades from builds where SystemUI requested vehicle permissions. -->
+        <permission name="android.car.permission.CONTROL_CAR_CLIMATE" />
+        <permission name="android.car.permission.CAR_CONTROL_AUDIO_VOLUME" />
+        <permission name="android.permission.SET_WALLPAPER" />
+        <permission name="android.permission.SET_WALLPAPER_COMPONENT" />
+    </privapp-permissions>
+</permissions>

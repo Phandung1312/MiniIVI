@@ -4,6 +4,11 @@
 *.ipr
 *.iws
 
+# Agent and release-workspace files
+/.agents/
+/AGENTS.md
+/tmp/
+
 # Gradle
 .gradle/
 build/
@@ -21,6 +26,10 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+
+# Checked-in release demo APKs
+!demo/
+!demo/*.apk
 
 # Kotlin/Java generated files
 *.class

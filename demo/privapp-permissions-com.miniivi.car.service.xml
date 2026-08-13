@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<permissions>
+    <privapp-permissions package="com.miniivi.car.service">
+        <permission name="android.car.permission.CONTROL_CAR_CLIMATE" />
+        <permission name="android.car.permission.CAR_CONTROL_AUDIO_VOLUME" />
+        <permission name="android.car.permission.CAR_TIRES" />
+        <permission name="android.car.permission.CAR_ENERGY" />
+        <permission name="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <permission name="android.permission.MANAGE_USERS" />
+        <permission name="android.permission.CONTROL_DISPLAY_BRIGHTNESS" />
+        <permission name="android.permission.BLUETOOTH_PRIVILEGED" />
+        <permission name="android.permission.LOCAL_MAC_ADDRESS" />
+        <permission name="android.permission.TETHER_PRIVILEGED" />
+        <permission name="android.permission.NETWORK_SETTINGS" />
+        <permission name="android.permission.DEVICE_POWER" />
+    </privapp-permissions>
+</permissions>
