@@ -10,4 +10,7 @@ MiniIVI is split into independent Android projects that are built and deployed a
 | `MiniIviMaps` | `MiniIviMaps.apk` | Standalone maps application and remote map-preview provider for the launcher. |
 | `CarSystemUI/boot-progress-overlay` | `MiniIviBootProgressOverlay.apk` | Framework resource overlay for the MiniIVI boot-progress screen. |
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for source build, system push, and verification instructions.
+## Deployment Notes
+
+- [DEPLOYMENT.md](DEPLOYMENT.md) is the detailed guide for building from source, pushing each application, and verifying the complete system.
+- `DEPLOYMENT_PREBUILT.md`, available on the `release` branch, is the quick deployment guide for smoke testing the prebuilt bundle.
