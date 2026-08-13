@@ -33,6 +33,12 @@ public final class BootBrandSpecTest {
     public void shimmerMovesAcrossAndBeyondGlyphBounds() {
         assertEquals(1920, BootBrandSpec.CANVAS_WIDTH);
         assertEquals(1080, BootBrandSpec.CANVAS_HEIGHT);
+        assertEquals(90, BootBrandSpec.INTRO_FRAMES);
+        assertEquals(72, BootBrandSpec.SHIMMER_FRAMES);
+        assertEquals(2_400L, BootBrandSpec.SHIMMER_DURATION_MILLIS);
+        assertEquals(
+                BootBrandSpec.SHIMMER_DURATION_MILLIS,
+                BootBrandSpec.SHIMMER_FRAMES * 1_000L / BootBrandSpec.FPS);
         assertEquals(60.0f, BootBrandSpec.shimmerCenter(0.0f), 0.0f);
         assertEquals(840.0f, BootBrandSpec.shimmerCenter(1.0f), 0.0f);
         assertEquals(450.0f, BootBrandSpec.shimmerCenter(0.5f), 0.0f);

@@ -14,7 +14,12 @@
     <string name="media_unavailable">Media unavailable</string>
     <string name="no_media_loaded">No media loaded</string>
     <string name="navigation_preview">Navigation</string>
-    <string name="open_maps">Open Maps</string>
+    <string name="map_preview_connecting">Connecting to Maps</string>
+    <string name="map_preview_locating">Finding current position</string>
+    <string name="map_preview_last_known">Showing last known position</string>
+    <string name="map_preview_location_unavailable">Current position unavailable</string>
+    <string name="map_preview_tiles_unavailable">Map tiles unavailable</string>
+    <string name="map_preview_unavailable">Map preview unavailable</string>
     <string name="vehicle_status">Vehicle status</string>
     <string name="vehicle_battery">Battery</string>
     <string name="vehicle_cabin">Cabin</string>

@@ -1,6 +1,7 @@
 package com.android.car.launcher
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -54,6 +55,10 @@ class LauncherComposeTest {
         composeRule.onNodeWithText("Tires").assertIsDisplayed()
         composeRule.onNodeWithText("Climate").assertIsDisplayed()
         composeRule.onNodeWithTag("vehicle_background").assertIsDisplayed()
+        composeRule.onNodeWithTag("vehicle_header_icon").assertIsDisplayed()
+        listOf("battery", "cabin", "outside", "range", "tires", "climate").forEach { tag ->
+            composeRule.onNodeWithTag("vehicle_metric_icon_$tag").assertIsDisplayed()
+        }
     }
 
     @Test
@@ -126,6 +131,9 @@ class LauncherComposeTest {
                         onPlayPause = {},
                         onNext = {},
                         onPrevious = {},
+                        mapPreviewContent = {
+                            Box(Modifier.fillMaxSize().testTag("fake_map_preview"))
+                        },
                     )
                 }
             }
@@ -137,27 +145,33 @@ class LauncherComposeTest {
             .fetchSemanticsNode().boundsInRoot
         val mapBounds = composeRule.onNodeWithTag("map_card")
             .fetchSemanticsNode().boundsInRoot
-        val vehicleBounds = composeRule.onNodeWithTag("vehicle_background")
+        val vehicleColumnBounds = composeRule.onNodeWithTag("vehicle_column")
+            .fetchSemanticsNode().boundsInRoot
+        val vehicleCardBounds = composeRule.onNodeWithTag("vehicle_background")
             .fetchSemanticsNode().boundsInRoot
         val imageBounds = composeRule.onNodeWithTag("vehicle_image")
             .fetchSemanticsNode().boundsInRoot
 
         assertEquals(167.2f, topRowBounds.left, 1f)
         assertEquals(topRowBounds.width, bottomRowBounds.width, 1f)
-        assertEquals(mapBounds.width, vehicleBounds.width, 1f)
-        assertEquals(mapBounds.height, vehicleBounds.height, 1f)
-        assertEquals(mapBounds.top, vehicleBounds.top, 1f)
-        assertEquals(mapBounds.bottom, vehicleBounds.bottom, 1f)
-        assertTrue(imageBounds.left >= vehicleBounds.left)
-        assertTrue(imageBounds.right <= vehicleBounds.right)
-        assertTrue(imageBounds.top >= vehicleBounds.top)
-        assertTrue(imageBounds.bottom <= vehicleBounds.bottom)
+        assertEquals(mapBounds.width, vehicleColumnBounds.width, 1f)
+        assertEquals(mapBounds.height, vehicleColumnBounds.height, 1f)
+        assertEquals(mapBounds.top, vehicleColumnBounds.top, 1f)
+        assertEquals(mapBounds.bottom, vehicleColumnBounds.bottom, 1f)
+        assertEquals(mapBounds.width, vehicleCardBounds.width, 1f)
+        assertEquals(mapBounds.top, vehicleCardBounds.top, 1f)
+        assertTrue(vehicleCardBounds.bottom < mapBounds.bottom)
+        assertTrue(imageBounds.left >= vehicleColumnBounds.left)
+        assertTrue(imageBounds.right <= vehicleColumnBounds.right)
+        assertTrue(imageBounds.top >= vehicleCardBounds.bottom)
+        assertTrue(imageBounds.bottom <= vehicleColumnBounds.bottom)
         assertTrue(
             !composeRule.onNodeWithTag("vehicle_metrics_panel")
                 .fetchSemanticsNode()
                 .config
                 .contains(SemanticsActions.OnClick),
         )
+        composeRule.onNodeWithTag("fake_map_preview").assertIsDisplayed()
     }
 
     @Test
@@ -192,13 +206,17 @@ class LauncherComposeTest {
             }
         }
 
-        val vehicleBounds = composeRule.onNodeWithTag("vehicle_background")
+        val vehicleColumnBounds = composeRule.onNodeWithTag("vehicle_column")
+            .fetchSemanticsNode().boundsInRoot
+        val vehicleCardBounds = composeRule.onNodeWithTag("vehicle_background")
             .fetchSemanticsNode().boundsInRoot
         val imageBounds = composeRule.onNodeWithTag("vehicle_image")
             .fetchSemanticsNode().boundsInRoot
         assertTrue(imageBounds.width >= 600f)
-        assertTrue(imageBounds.right <= vehicleBounds.right)
-        assertTrue(imageBounds.bottom <= vehicleBounds.bottom)
+        assertTrue(imageBounds.left >= vehicleColumnBounds.left)
+        assertTrue(imageBounds.right <= vehicleColumnBounds.right)
+        assertTrue(imageBounds.top >= vehicleCardBounds.bottom)
+        assertTrue(imageBounds.bottom <= vehicleColumnBounds.bottom)
     }
 }
 

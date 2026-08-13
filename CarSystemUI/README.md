@@ -76,18 +76,18 @@ during system startup.
 
 The boot pipeline uses three coordinated artifacts:
 
-- `:boot-brand` supplies the shared IVI geometry, colors, and shimmer timing.
+- `:boot-brand` supplies the IVI geometry, colors, and shimmer timing.
 - `:boot-animation` generates deterministic standard and dark archives for
   `/product/media`.
 - `:boot-progress-overlay` produces the code-free, platform-signed RRO for
   `/product/overlay/MiniIviBootProgressOverlay.apk`.
 
-CarSystemUI displays the same IVI shimmer in a direct-boot system window after
-the native animation exits. CarLauncher sends a signature-protected first-frame
-signal, and the handoff fades only after the Launcher has submitted that frame.
-The handoff removes itself after 30 seconds if the signal never arrives. The RRO
-changes only framework boot-progress strings; it does not replace shared
-progress-dialog layouts or spinner drawables.
+The native animation shows the IVI intro over 3 seconds and a 2.4-second
+horizontal shimmer.
+After it exits, Android keeps its framework boot-progress spinner and the RRO
+changes its title to `IVI is starting`. CarSystemUI does not add a separate boot
+handoff window. The RRO changes only framework boot-progress strings; it does
+not replace shared progress-dialog layouts or spinner drawables.
 
 ## 5. SystemUI architecture and Control Center
 

@@ -20,12 +20,4 @@ public final class FrameworkPlatformApi {
         context.startActivityAsUser(intent, user);
     }
 
-    public static void sendBroadcastAsUser(Context context, Intent intent, UserHandle user) {
-        context.sendBroadcastAsUser(intent, user);
-    }
-
-    public static UserHandle systemUser() {
-        return UserHandle.SYSTEM;
-    }
-
 }

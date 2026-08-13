@@ -56,8 +56,8 @@ public final class BootAnimationGeneratorTest {
                         + "c 1 0 intro #15121C\n"
                         + "f 0 0 shimmer 12 #15121C\n",
                 BootAnimationGenerator.DESCRIPTION);
-        assertEquals(45, BootAnimationGenerator.INTRO_FRAMES);
-        assertEquals(36, BootAnimationGenerator.SHIMMER_FRAMES);
+        assertEquals(90, BootAnimationGenerator.INTRO_FRAMES);
+        assertEquals(72, BootAnimationGenerator.SHIMMER_FRAMES);
     }
 
     @Test
@@ -86,8 +86,8 @@ public final class BootAnimationGeneratorTest {
     @Test
     public void shimmer_movesFromLeftToRightWithoutDrawingTheFormerRing() {
         BufferedImage baseline = BootAnimationGenerator.renderShimmerFrame(0);
-        BufferedImage leftSweep = BootAnimationGenerator.renderShimmerFrame(10);
-        BufferedImage rightSweep = BootAnimationGenerator.renderShimmerFrame(26);
+        BufferedImage leftSweep = BootAnimationGenerator.renderShimmerFrame(20);
+        BufferedImage rightSweep = BootAnimationGenerator.renderShimmerFrame(52);
 
         assertTrue(changedPixelCentroidX(baseline, leftSweep) < 450.0);
         assertTrue(changedPixelCentroidX(baseline, rightSweep) > 450.0);

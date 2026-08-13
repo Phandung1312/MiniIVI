@@ -7,10 +7,10 @@ public final class BootBrandSpec {
     public static final int DESIGN_WIDTH = 900;
     public static final int DESIGN_HEIGHT = 420;
     public static final int FPS = 30;
-    public static final int INTRO_FRAMES = 45;
-    public static final int SHIMMER_FRAMES = 36;
+    public static final int INTRO_FRAMES = 90;
+    public static final int SHIMMER_FRAMES = 72;
     public static final int FADE_FRAMES = 12;
-    public static final long SHIMMER_DURATION_MILLIS = 1_200L;
+    public static final long SHIMMER_DURATION_MILLIS = 2_400L;
 
     public static final int BACKGROUND_COLOR = 0xFF15121C;
     public static final int TEXT_COLOR = 0xFFF8F4FC;
