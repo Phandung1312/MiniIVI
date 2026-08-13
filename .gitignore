@@ -24,6 +24,7 @@ captures/
 
 # Kotlin/Java generated files
 *.class
+.kotlin/
 out/
 
 # OS/editor files
@@ -31,3 +32,6 @@ out/
 Thumbs.db
 *.swp
 *.swo
+
+# Temporary files
+tmp/

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run DreamCar Emulator"
+  short_description: "Start the writable DreamCar Android emulator"
+  default_prompt: "Use $run-dreamcar-emulator to start the DreamCar AVD with a writable system image."
