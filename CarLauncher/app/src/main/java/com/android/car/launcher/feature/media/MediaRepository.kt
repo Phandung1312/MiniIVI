@@ -86,11 +86,14 @@ class MediaRepository @Inject constructor(
                     errorMessage = null,
                 )
             }
-            Log.d(TAG, "Loaded ${tracks.size} audio files from MediaStore")
+            Log.i(
+                TAG,
+                "event=library_loaded track_count=${tracks.size} retained_selection=$keepsCurrentTrack",
+            )
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            Log.e(TAG, "Unable to load audio from MediaStore", error)
+            Log.e(TAG, "event=library_load_failed", error)
             _state.update {
                 it.copy(
                     isLoading = false,
@@ -156,11 +159,13 @@ class MediaRepository @Inject constructor(
             player.isPlaying -> {
                 player.pause()
                 _state.update { it.copy(isPlaying = false) }
+                logDebug("event=playback_changed state=paused")
             }
 
             else -> {
                 player.start()
                 _state.update { it.copy(isPlaying = true) }
+                logDebug("event=playback_changed state=playing")
             }
         }
     }
@@ -181,6 +186,7 @@ class MediaRepository @Inject constructor(
 
     fun play(index: Int) {
         val track = _state.value.tracks.getOrNull(index) ?: return
+        logDebug("event=playback_requested index=$index track_count=${_state.value.tracks.size}")
         releasePlayer(updateState = false)
         _state.update {
             it.copy(
@@ -198,10 +204,14 @@ class MediaRepository @Inject constructor(
                 player.setOnPreparedListener {
                     it.start()
                     _state.update { state -> state.copy(isPreparing = false, isPlaying = true) }
+                    Log.i(TAG, "event=playback_started index=${_state.value.selectedIndex}")
                 }
-                player.setOnCompletionListener { playNext() }
+                player.setOnCompletionListener {
+                    logDebug("event=playback_completed index=${_state.value.selectedIndex}")
+                    playNext()
+                }
                 player.setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "MediaPlayer error what=$what extra=$extra")
+                    Log.e(TAG, "event=playback_failed stage=player what=$what extra=$extra")
                     releasePlayer()
                     _state.update {
                         it.copy(errorMessage = "Unable to play ${track.title}")
@@ -211,13 +221,14 @@ class MediaRepository @Inject constructor(
                 player.prepareAsync()
             }
         }.onFailure { error ->
-            Log.e(TAG, "Unable to play ${track.contentUri}", error)
+            Log.e(TAG, "event=playback_failed stage=prepare index=$index", error)
             releasePlayer()
             _state.update { it.copy(errorMessage = error.message ?: "Unable to play this song") }
         }
     }
 
     fun releasePlayer(updateState: Boolean = true) {
+        val hadPlayer = mediaPlayer != null
         mediaPlayer?.runCatching {
             setOnPreparedListener(null)
             setOnCompletionListener(null)
@@ -228,10 +239,15 @@ class MediaRepository @Inject constructor(
         if (updateState) {
             _state.update { it.copy(isPreparing = false, isPlaying = false) }
         }
+        if (hadPlayer) logDebug("event=player_released update_state=$updateState")
+    }
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
     }
 
     private companion object {
-        const val TAG = "MediaRepository"
+        const val TAG = "MiniIviMedia"
         const val MEDIA_CHANGE_DEBOUNCE_MILLIS = 300L
     }
 }

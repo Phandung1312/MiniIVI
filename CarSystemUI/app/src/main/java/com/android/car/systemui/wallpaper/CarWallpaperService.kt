@@ -6,13 +6,17 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.service.wallpaper.WallpaperService
+import android.util.Log
 import android.view.SurfaceHolder
 import com.android.car.systemui.R
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 class CarWallpaperService : WallpaperService() {
-    override fun onCreateEngine(): Engine = CarWallpaperEngine()
+    override fun onCreateEngine(): Engine {
+        Log.i(TAG, "event=engine_created feature=wallpaper")
+        return CarWallpaperEngine()
+    }
 
     private inner class CarWallpaperEngine : Engine() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
@@ -21,6 +25,10 @@ class CarWallpaperService : WallpaperService() {
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
             wallpaper = BitmapFactory.decodeResource(resources, R.drawable.wall_paper)
+            Log.i(
+                TAG,
+                "event=wallpaper_loaded available=${wallpaper != null}",
+            )
             drawWallpaper()
         }
 
@@ -36,6 +44,7 @@ class CarWallpaperService : WallpaperService() {
         override fun onDestroy() {
             wallpaper?.recycle()
             wallpaper = null
+            Log.i(TAG, "event=engine_destroyed feature=wallpaper")
             super.onDestroy()
         }
 
@@ -63,5 +72,9 @@ class CarWallpaperService : WallpaperService() {
                 canvas?.let(holder::unlockCanvasAndPost)
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "MiniIviWallpaper"
     }
 }

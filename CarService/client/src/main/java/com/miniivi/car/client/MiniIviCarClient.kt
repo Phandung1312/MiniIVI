@@ -61,56 +61,108 @@ class MiniIviCarClient(context: Context) {
     private var started = false
     private var binding = false
     private var bound = false
+    private var lastLoggedRetryDelay = -1L
     private val retryBackoff = RetryBackoff(INITIAL_RETRY_MILLIS, MAX_RETRY_MILLIS)
 
     private val brightnessListener = object : IBrightnessStateListener.Stub() {
         override fun onBrightnessStateChanged(state: BrightnessState) {
+            logStateTransition(
+                "brightness",
+                mutableBrightnessState.value.status,
+                mutableBrightnessState.value.available,
+                state.status,
+                state.available,
+            )
             mutableBrightnessState.value = state
         }
     }
 
     private val audioListener = object : IAudioStateListener.Stub() {
         override fun onAudioStateChanged(state: AudioState) {
+            logStateTransition(
+                "audio",
+                mutableAudioState.value.status,
+                mutableAudioState.value.available,
+                state.status,
+                state.available,
+            )
             mutableAudioState.value = state
         }
     }
 
     private val hvacListener = object : IHvacStateListener.Stub() {
         override fun onHvacStateChanged(state: HvacState) {
+            logStateTransition(
+                "hvac",
+                mutableHvacState.value.status,
+                mutableHvacState.value.available,
+                state.status,
+                state.available,
+            )
             mutableHvacState.value = state
         }
     }
 
     private val vehicleStatusListener = object : IVehicleStatusListener.Stub() {
         override fun onVehicleStatusChanged(state: VehicleStatusState) {
+            logStateTransition(
+                "vehicle_status",
+                mutableVehicleStatusState.value.status,
+                mutableVehicleStatusState.value.available,
+                state.status,
+                state.available,
+            )
             mutableVehicleStatusState.value = state
         }
     }
 
     private val climateControlListener = object : IClimateControlStateListener.Stub() {
         override fun onClimateControlStateChanged(state: ClimateControlState) {
+            logStateTransition(
+                "climate_control",
+                mutableClimateControlState.value.status,
+                mutableClimateControlState.value.available,
+                state.status,
+                state.available,
+            )
             mutableClimateControlState.value = state
         }
     }
 
     private val quickControlsListener = object : IQuickControlsStateListener.Stub() {
         override fun onQuickControlsStateChanged(state: QuickControlsState) {
+            logStateTransition(
+                "quick_controls",
+                mutableQuickControlsState.value.status,
+                mutableQuickControlsState.value.available,
+                state.status,
+                state.available,
+            )
             mutableQuickControlsState.value = state
         }
     }
 
     private val bluetoothListener = object : IBluetoothFeatureStateListener.Stub() {
         override fun onBluetoothFeatureStateChanged(state: BluetoothFeatureState) {
+            logStateTransition(
+                "bluetooth",
+                mutableBluetoothState.value.status,
+                mutableBluetoothState.value.available,
+                state.status,
+                state.available,
+            )
             mutableBluetoothState.value = state
         }
     }
 
     private val deathRecipient = IBinder.DeathRecipient {
+        Log.w(TAG, "event=binder_died service=car_control")
         mainHandler.post { resetBindingAndRetry("Car control service binder died") }
     }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+            Log.i(TAG, "event=service_connected component=${name.flattenToShortString()}")
             binding = false
             bound = true
             val service = IMiniIviCarService.Stub.asInterface(binder)
@@ -146,23 +198,32 @@ class MiniIviCarClient(context: Context) {
             }.onSuccess {
                 remote = service
                 retryBackoff.reset()
+                lastLoggedRetryDelay = -1L
+                Log.i(
+                    TAG,
+                    "event=client_ready api_version=$remoteApiVersion bluetooth=" +
+                        CarServiceCompatibility.supportsBluetooth(remoteApiVersion),
+                )
             }.onFailure { error ->
-                Log.e(TAG, "Unable to initialize the car control client", error)
+                Log.e(TAG, "event=client_initialization_failed", error)
                 resetBindingAndRetry(error.message ?: "Car control service initialization failed")
             }
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
+            Log.w(TAG, "event=service_disconnected component=${name.flattenToShortString()}")
             remote = null
             remoteApiVersion = 0
             publishDisconnected("Car control service disconnected")
         }
 
         override fun onBindingDied(name: ComponentName) {
+            Log.w(TAG, "event=binding_died component=${name.flattenToShortString()}")
             resetBindingAndRetry("Car control service binding died")
         }
 
         override fun onNullBinding(name: ComponentName) {
+            Log.w(TAG, "event=null_binding component=${name.flattenToShortString()}")
             resetBindingAndRetry("Car control service returned a null binding")
         }
     }
@@ -170,78 +231,81 @@ class MiniIviCarClient(context: Context) {
     fun start() {
         if (started) return
         started = true
+        Log.i(TAG, "event=client_started")
         bindNow()
     }
 
     fun close() {
         if (!started) return
         started = false
+        Log.i(TAG, "event=client_stopping")
         mainHandler.removeCallbacksAndMessages(RETRY_TOKEN)
         remote?.let(::unregisterListeners)
         remote = null
         remoteApiVersion = 0
         unbindSafely()
         publishDisconnected("Car control client stopped")
+        Log.i(TAG, "event=client_stopped")
     }
 
     fun setBrightness(progress: Float): Boolean =
-        sendCommand { it.setBrightness(progress) }
+        sendCommand("set_brightness", logSuccess = false) { it.setBrightness(progress) }
 
     fun setMediaVolume(volume: Int): Boolean =
-        sendCommand { it.setMediaVolume(volume) }
+        sendCommand("set_media_volume", logSuccess = false) { it.setMediaVolume(volume) }
 
     fun setHvacTemperature(zone: Int, celsius: Float): Boolean =
-        sendCommand { it.setHvacTemperature(zone, celsius) }
+        sendCommand("set_hvac_temperature") { it.setHvacTemperature(zone, celsius) }
 
     fun setAcEnabled(enabled: Boolean): Boolean =
-        sendCommand { it.setAcEnabled(enabled) }
+        sendCommand("set_ac") { it.setAcEnabled(enabled) }
 
     fun setClimatePowerEnabled(enabled: Boolean): Boolean =
-        sendCommand { it.setClimatePowerEnabled(enabled) }
+        sendCommand("set_climate_power") { it.setClimatePowerEnabled(enabled) }
 
     fun setClimateAutoEnabled(enabled: Boolean): Boolean =
-        sendCommand { it.setClimateAutoEnabled(enabled) }
+        sendCommand("set_climate_auto") { it.setClimateAutoEnabled(enabled) }
 
     fun setClimateSyncEnabled(enabled: Boolean): Boolean =
-        sendCommand { it.setClimateSyncEnabled(enabled) }
+        sendCommand("set_climate_sync") { it.setClimateSyncEnabled(enabled) }
 
     fun setClimateRecirculationEnabled(enabled: Boolean): Boolean =
-        sendCommand { it.setClimateRecirculationEnabled(enabled) }
+        sendCommand("set_climate_recirculation") { it.setClimateRecirculationEnabled(enabled) }
 
     fun setClimateFanSpeed(zone: Int, speed: Int): Boolean =
-        sendCommand { it.setClimateFanSpeed(zone, speed) }
+        sendCommand("set_climate_fan_speed") { it.setClimateFanSpeed(zone, speed) }
 
     fun setClimateFanDirection(zone: Int, direction: Int): Boolean =
-        sendCommand { it.setClimateFanDirection(zone, direction) }
+        sendCommand("set_climate_fan_direction") { it.setClimateFanDirection(zone, direction) }
 
     fun setClimateDefrosterEnabled(window: Int, enabled: Boolean): Boolean =
-        sendCommand { it.setClimateDefrosterEnabled(window, enabled) }
+        sendCommand("set_climate_defroster") { it.setClimateDefrosterEnabled(window, enabled) }
 
     fun setSeatHeatingLevel(zone: Int, level: Int): Boolean =
-        sendCommand { it.setSeatHeatingLevel(zone, level) }
+        sendCommand("set_seat_heating") { it.setSeatHeatingLevel(zone, level) }
 
     fun setSeatVentilationLevel(zone: Int, level: Int): Boolean =
-        sendCommand { it.setSeatVentilationLevel(zone, level) }
+        sendCommand("set_seat_ventilation") { it.setSeatVentilationLevel(zone, level) }
 
     fun setMaxAcEnabled(enabled: Boolean): Boolean =
-        sendCommand { it.setMaxAcEnabled(enabled) }
+        sendCommand("set_max_ac") { it.setMaxAcEnabled(enabled) }
 
     fun setMaxDefrostEnabled(enabled: Boolean): Boolean =
-        sendCommand { it.setMaxDefrostEnabled(enabled) }
+        sendCommand("set_max_defrost") { it.setMaxDefrostEnabled(enabled) }
 
     fun setAutoRecirculationEnabled(enabled: Boolean): Boolean =
-        sendCommand { it.setAutoRecirculationEnabled(enabled) }
+        sendCommand("set_auto_recirculation") { it.setAutoRecirculationEnabled(enabled) }
 
     fun setSteeringWheelHeatLevel(level: Int): Boolean =
-        sendCommand { it.setSteeringWheelHeatLevel(level) }
+        sendCommand("set_steering_wheel_heat") { it.setSteeringWheelHeatLevel(level) }
 
     fun setTemperatureUnit(unit: Int): Boolean =
-        sendCommand { it.setTemperatureUnit(unit) }
+        sendCommand("set_temperature_unit") { it.setTemperatureUnit(unit) }
 
     fun setQuickControlEnabled(control: Int, enabled: Boolean): Boolean =
-        sendCommand { it.setQuickControlEnabled(control, enabled) }
+        sendCommand("set_quick_control") { it.setQuickControlEnabled(control, enabled) }
 
-    fun requestScreenOff(): Boolean = sendCommand { it.requestScreenOff() }
+    fun requestScreenOff(): Boolean = sendCommand("request_screen_off") { it.requestScreenOff() }
 
     fun refreshBrightness(): Boolean = requestStateRefresh(CarFeature.BRIGHTNESS)
 
@@ -255,14 +319,15 @@ class MiniIviCarClient(context: Context) {
 
     fun refreshBluetooth(): Boolean = requestStateRefresh(CarFeature.BLUETOOTH)
 
-    fun requestBluetoothDiscovery(): Boolean = callVersion4 { it.requestBluetoothDiscovery() }
+    fun requestBluetoothDiscovery(): Boolean =
+        callVersion4("bluetooth_discovery") { it.requestBluetoothDiscovery() }
 
     fun renameLocalBluetoothDevice(name: String): Boolean =
-        callVersion4 { it.renameLocalBluetoothDevice(name) }
+        callVersion4("bluetooth_rename") { it.renameLocalBluetoothDevice(name) }
 
     private fun requestStateRefresh(featureMask: Int): Boolean =
         if (CarServiceCompatibility.supportsRefresh(remoteApiVersion)) {
-            sendCommand { it.requestStateRefresh(featureMask) }
+            sendCommand("refresh_state") { it.requestStateRefresh(featureMask) }
         } else {
             resyncCachedState(featureMask)
         }
@@ -282,15 +347,34 @@ class MiniIviCarClient(context: Context) {
             if (featureMask and CarFeature.QUICK_CONTROLS != 0) {
                 mutableQuickControlsState.value = service.quickControlsState
             }
+        }.onSuccess {
+            logDebug(
+                "event=state_resynced mode=legacy feature_mask=0x${featureMask.toString(16)}",
+            )
+        }.onFailure { error ->
+            Log.w(
+                TAG,
+                "event=state_resync_failed mode=legacy feature_mask=0x${featureMask.toString(16)}",
+                error,
+            )
         }.isSuccess
     }
 
-    private fun callVersion4(command: (IMiniIviCarService) -> Boolean): Boolean {
-        val service = remote ?: return false
-        if (!CarServiceCompatibility.supportsBluetooth(remoteApiVersion)) return false
+    private fun callVersion4(
+        operation: String,
+        command: (IMiniIviCarService) -> Boolean,
+    ): Boolean {
+        val service = remote ?: return commandUnavailable(operation)
+        if (!CarServiceCompatibility.supportsBluetooth(remoteApiVersion)) {
+            Log.w(TAG, "event=command_rejected command=$operation reason=unsupported_api")
+            return false
+        }
         return runCatching { command(service) }
+            .onSuccess { accepted ->
+                logDebug("event=command_result command=$operation accepted=$accepted")
+            }
             .onFailure { error ->
-                Log.w(TAG, "Unable to send a Bluetooth command", error)
+                Log.w(TAG, "event=command_failed command=$operation", error)
                 mainHandler.post {
                     resetBindingAndRetry(error.message ?: "Car control Bluetooth command failed")
                 }
@@ -298,11 +382,18 @@ class MiniIviCarClient(context: Context) {
             .getOrDefault(false)
     }
 
-    private fun sendCommand(command: (IMiniIviCarService) -> Unit): Boolean {
-        val service = remote ?: return false
+    private fun sendCommand(
+        operation: String,
+        logSuccess: Boolean = true,
+        command: (IMiniIviCarService) -> Unit,
+    ): Boolean {
+        val service = remote ?: return commandUnavailable(operation, logSuccess)
         return runCatching { command(service) }
+            .onSuccess {
+                if (logSuccess) logDebug("event=command_sent command=$operation")
+            }
             .onFailure { error ->
-                Log.w(TAG, "Unable to send a car control command", error)
+                Log.w(TAG, "event=command_failed command=$operation", error)
                 mainHandler.post {
                     resetBindingAndRetry(error.message ?: "Car control command failed")
                 }
@@ -310,17 +401,24 @@ class MiniIviCarClient(context: Context) {
             .isSuccess
     }
 
+    private fun commandUnavailable(operation: String, logResult: Boolean = true): Boolean {
+        if (logResult) logDebug("event=command_rejected command=$operation reason=not_connected")
+        return false
+    }
+
     private fun bindNow() {
         if (!started || binding || bound) return
         binding = true
+        logDebug("event=bind_requested service=car_control")
         val intent = Intent().setComponent(
             ComponentName(CarServiceContract.SERVICE_PACKAGE, CarServiceContract.SERVICE_CLASS),
         )
         val accepted = runCatching {
             applicationContext.bindService(intent, connection, Context.BIND_AUTO_CREATE)
-        }.onFailure { Log.e(TAG, "Unable to bind the car control service", it) }
+        }.onFailure { Log.e(TAG, "event=bind_failed service=car_control", it) }
             .getOrDefault(false)
         if (!accepted) {
+            Log.w(TAG, "event=bind_rejected service=car_control")
             binding = false
             publishDisconnected("Car control service is unavailable")
             scheduleRetry()
@@ -328,6 +426,7 @@ class MiniIviCarClient(context: Context) {
     }
 
     private fun resetBindingAndRetry(message: String) {
+        Log.w(TAG, "event=connection_reset reason=${message.toEventKey()}")
         remote?.asBinder()?.unlinkToDeath(deathRecipient, 0)
         remote?.let(::unregisterListeners)
         remote = null
@@ -347,10 +446,15 @@ class MiniIviCarClient(context: Context) {
         if (CarServiceCompatibility.supportsBluetooth(remoteApiVersion)) {
             runCatching { service.unregisterBluetoothFeatureStateListener(bluetoothListener) }
         }
+        logDebug("event=listeners_unregistered service=car_control")
     }
 
     private fun unbindSafely() {
-        if (bound || binding) runCatching { applicationContext.unbindService(connection) }
+        if (bound || binding) {
+            runCatching { applicationContext.unbindService(connection) }
+                .onSuccess { logDebug("event=service_unbound service=car_control") }
+                .onFailure { error -> Log.w(TAG, "event=unbind_failed service=car_control", error) }
+        }
         bound = false
         binding = false
     }
@@ -358,11 +462,20 @@ class MiniIviCarClient(context: Context) {
     private fun scheduleRetry() {
         if (!started) return
         val delay = retryBackoff.nextDelay()
+        if (delay != lastLoggedRetryDelay) {
+            Log.w(TAG, "event=bind_retry_scheduled service=car_control delay_ms=$delay")
+            lastLoggedRetryDelay = delay
+        }
         mainHandler.removeCallbacksAndMessages(RETRY_TOKEN)
         mainHandler.postAtTime({ bindNow() }, RETRY_TOKEN, SystemClock.uptimeMillis() + delay)
     }
 
     private fun publishDisconnected(message: String) {
+        val wasDisconnected = mutableBrightnessState.value.status == FeatureStatus.UNAVAILABLE &&
+            !mutableBrightnessState.value.available
+        if (!wasDisconnected) {
+            Log.w(TAG, "event=client_unavailable reason=${message.toEventKey()}")
+        }
         mutableBrightnessState.value = mutableBrightnessState.value.copy(
             status = FeatureStatus.UNAVAILABLE,
             available = false,
@@ -403,6 +516,24 @@ class MiniIviCarClient(context: Context) {
         diagnosticMessage = message,
     )
 
+    private fun logStateTransition(
+        feature: String,
+        previousStatus: Int,
+        previousAvailable: Boolean,
+        status: Int,
+        available: Boolean,
+    ) {
+        if (previousStatus == status && previousAvailable == available) return
+        Log.i(
+            TAG,
+            "event=feature_state_changed feature=$feature status=$status available=$available",
+        )
+    }
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
+    }
+
     private companion object {
         const val TAG = "MiniIviCarClient"
         const val INITIAL_RETRY_MILLIS = 1_000L
@@ -432,3 +563,5 @@ internal class RetryBackoff(
         currentDelayMillis = initialDelayMillis
     }
 }
+
+private fun String.toEventKey(): String = lowercase().replace(' ', '_')

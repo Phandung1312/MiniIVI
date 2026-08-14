@@ -57,6 +57,7 @@ class AudioController(
     fun start() {
         if (started) return
         started = true
+        Log.i(TAG, "event=controller_started feature=audio")
         ContextCompat.registerReceiver(
             context,
             volumeReceiver,
@@ -66,7 +67,7 @@ class AudioController(
         scope.launch {
             val hasCallback = runCatching { connectCarAudio() }
                 .onFailure {
-                    Log.w(TAG, "Car audio is unavailable; using media stream audio", it)
+                    Log.w(TAG, "event=backend_fallback feature=audio backend=media_stream", it)
                     disconnectCarAudio()
                 }
                 .getOrDefault(false)
@@ -78,10 +79,12 @@ class AudioController(
     fun stop() {
         if (!started) return
         started = false
+        Log.i(TAG, "event=controller_stopping feature=audio")
         pollingJob?.cancel()
         pollingJob = null
         runCatching { context.unregisterReceiver(volumeReceiver) }
         disconnectCarAudio()
+        Log.i(TAG, "event=controller_stopped feature=audio")
     }
 
     fun refresh() {
@@ -128,6 +131,11 @@ class AudioController(
         if (!started || carAudioManager != null) return
         runCatching { connectCarAudioManager(lifecycleCar) }
             .onSuccess { hasCallback ->
+                Log.i(
+                    TAG,
+                    "event=backend_ready feature=audio backend=car_audio callback=$hasCallback " +
+                        "group_id=${mediaGroupId ?: -1}",
+                )
                 if (hasCallback) {
                     pollingJob?.cancel()
                     pollingJob = null
@@ -137,7 +145,7 @@ class AudioController(
                 refreshBlocking()
             }
             .onFailure { error ->
-                Log.w(TAG, "Car audio is unavailable; using media stream audio", error)
+                Log.w(TAG, "event=backend_fallback feature=audio backend=media_stream", error)
                 clearCarAudioManager()
                 refreshStreamVolume()
                 startPolling()
@@ -145,6 +153,7 @@ class AudioController(
     }
 
     private fun onCarUnavailable() {
+        Log.w(TAG, "event=backend_unavailable feature=audio backend=car_audio")
         clearCarAudioManager(unregisterCallback = false)
         refreshStreamVolume()
     }
@@ -221,7 +230,12 @@ class AudioController(
                 )
             }.onSuccess { mutableState.value = it }
                 .onFailure { error ->
-                    Log.w(TAG, "Unable to read car audio state; using media stream audio", error)
+                    Log.w(
+                        TAG,
+                        "event=backend_fallback feature=audio backend=media_stream " +
+                            "reason=car_audio_read_failed",
+                        error,
+                    )
                     disconnectCarAudio()
                     refreshStreamVolume()
                     startPolling()
@@ -275,7 +289,9 @@ class AudioController(
                     "unregisterCarVolumeGroupEventCallback",
                     callback.javaClass.interfaces.first(),
                 ).invoke(manager, callback)
-            }.onFailure { Log.w(TAG, "Unable to unregister the car audio callback", it) }
+            }.onFailure {
+                Log.w(TAG, "event=callback_unregister_failed feature=audio", it)
+            }
         }
         carVolumeCallback = null
         carAudioManager = null
@@ -283,6 +299,7 @@ class AudioController(
     }
 
     private fun publishError(message: String, error: Throwable) {
+        Log.e(TAG, "event=operation_failed feature=audio operation=${message.toEventKey()}", error)
         mutableState.value = mutableState.value.copy(
             status = FeatureStatus.ERROR,
             available = false,

@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import android.view.Display
 import androidx.core.content.ContextCompat
 import com.miniivi.car.api.BrightnessState
@@ -74,6 +75,7 @@ class BrightnessController(
     private val powerManager = applicationContext.getSystemService(PowerManager::class.java)
     private var started = false
     private var observedResolver: ContentResolver? = null
+    private var activeBackend: String? = null
 
     private val observer = object : ContentObserver(mainHandler) {
         override fun onChange(selfChange: Boolean) = refresh()
@@ -97,6 +99,7 @@ class BrightnessController(
     fun start() {
         if (started) return
         started = true
+        Log.i(TAG, "event=controller_started feature=brightness")
         ContextCompat.registerReceiver(
             applicationContext,
             userReceiver,
@@ -111,10 +114,12 @@ class BrightnessController(
     fun stop() {
         if (!started) return
         started = false
+        Log.i(TAG, "event=controller_stopping feature=brightness")
         runCatching { applicationContext.unregisterReceiver(userReceiver) }
         runCatching { displayManager?.unregisterDisplayListener(displayListener) }
         observedResolver?.let { resolver -> runCatching { resolver.unregisterContentObserver(observer) } }
         observedResolver = null
+        Log.i(TAG, "event=controller_stopped feature=brightness")
     }
 
     fun refresh() {
@@ -126,10 +131,12 @@ class BrightnessController(
                     Settings.System.SCREEN_BRIGHTNESS_MODE,
                     Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
                 )
+                val displayProgress = readDisplayBrightnessProgress()
+                logBackend(if (displayProgress != null) "display_manager" else "settings")
                 BrightnessState(
                     status = FeatureStatus.READY,
                     available = true,
-                    progress = readDisplayBrightnessProgress() ?: readSettingProgress(resolver),
+                    progress = displayProgress ?: readSettingProgress(resolver),
                     automatic = mode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC,
                 )
             }.onSuccess { mutableState.value = it }
@@ -139,6 +146,7 @@ class BrightnessController(
 
     fun setProgress(progress: Float) {
         if (!progress.isFinite()) {
+            Log.w(TAG, "event=command_rejected command=set_brightness reason=non_finite")
             mutableState.value = mutableState.value.copy(
                 status = FeatureStatus.ERROR,
                 errorCode = CarServiceError.INVALID_ARGUMENT,
@@ -162,6 +170,7 @@ class BrightnessController(
                     ),
                 ) { "Unable to switch brightness to manual mode" }
                 if (!setDisplayBrightness(normalized)) {
+                    logBackend("settings")
                     val (minimum, maximum) = settingRange()
                     check(
                         Settings.System.putInt(
@@ -170,7 +179,7 @@ class BrightnessController(
                             BrightnessPolicy.progressToSetting(normalized, minimum, maximum),
                         ),
                     ) { "Unable to write screen brightness" }
-                }
+                } else logBackend("display_manager")
                 mutableState.value = mutableState.value.copy(
                     status = FeatureStatus.READY,
                     available = true,
@@ -259,6 +268,7 @@ class BrightnessController(
     }
 
     private fun publishError(message: String, error: Throwable) {
+        Log.e(TAG, "event=operation_failed feature=brightness operation=${message.toEventKey()}", error)
         mutableState.value = mutableState.value.copy(
             status = FeatureStatus.ERROR,
             available = false,
@@ -267,7 +277,14 @@ class BrightnessController(
         )
     }
 
+    private fun logBackend(backend: String) {
+        if (activeBackend == backend) return
+        activeBackend = backend
+        Log.i(TAG, "event=backend_ready feature=brightness backend=$backend")
+    }
+
     private companion object {
+        const val TAG = "MiniIviBrightness"
         const val FALLBACK_MINIMUM = 1
         const val FALLBACK_MAXIMUM = 255
         const val DISPLAY_MINIMUM = 0f
@@ -276,3 +293,5 @@ class BrightnessController(
         const val ACTION_USER_SWITCHED = "android.intent.action.USER_SWITCHED"
     }
 }
+
+internal fun String.toEventKey(): String = lowercase().replace(' ', '_')

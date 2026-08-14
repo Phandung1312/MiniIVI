@@ -5,36 +5,44 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 
 abstract class LifeCycleLogger : ComponentActivity() {
-    private val logTag: String
+    private val componentName: String
         get() = javaClass.simpleName
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(logTag, "onCreate")
+        Log.i(TAG, "event=activity_created component=$componentName")
     }
 
     override fun onStart() {
         super.onStart()
-        Log.d(logTag, "onStart")
+        logDebug("event=activity_started component=$componentName")
     }
 
     override fun onResume() {
         super.onResume()
-        Log.d(logTag, "onResume")
+        logDebug("event=activity_resumed component=$componentName")
     }
 
     override fun onPause() {
-        Log.d(logTag, "onPause")
+        logDebug("event=activity_paused component=$componentName")
         super.onPause()
     }
 
     override fun onStop() {
-        Log.d(logTag, "onStop")
+        logDebug("event=activity_stopped component=$componentName")
         super.onStop()
     }
 
     override fun onDestroy() {
-        Log.d(logTag, "onDestroy")
+        Log.i(TAG, "event=activity_destroyed component=$componentName")
         super.onDestroy()
+    }
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
+    }
+
+    private companion object {
+        const val TAG = "MiniIviLauncherLife"
     }
 }

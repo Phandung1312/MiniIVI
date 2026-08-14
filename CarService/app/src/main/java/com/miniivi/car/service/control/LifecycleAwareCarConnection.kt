@@ -2,6 +2,7 @@ package com.miniivi.car.service.control
 
 import android.content.Context
 import android.os.Handler
+import android.util.Log
 import java.lang.reflect.Proxy
 
 /**
@@ -23,7 +24,12 @@ internal class LifecycleAwareCarConnection(
         private set
 
     fun connect() {
-        if (car != null) return
+        if (car != null) {
+            logDebug("event=connect_skipped reason=already_connected")
+            return
+        }
+
+        Log.i(TAG, "event=connection_requested backend=aaos")
 
         val carClass = Class.forName(CAR_CLASS)
         val listenerClass = Class.forName(CAR_LIFECYCLE_LISTENER_CLASS)
@@ -36,7 +42,13 @@ internal class LifecycleAwareCarConnection(
                     val lifecycleCar = requireNotNull(args?.getOrNull(0))
                     val ready = args.getOrNull(1) as? Boolean ?: false
                     car = lifecycleCar
-                    if (ready) onReady(lifecycleCar) else onUnavailable()
+                    if (ready) {
+                        Log.i(TAG, "event=connection_ready backend=aaos")
+                        onReady(lifecycleCar)
+                    } else {
+                        Log.w(TAG, "event=connection_unavailable backend=aaos")
+                        onUnavailable()
+                    }
                     null
                 }
                 "toString" -> "MiniIVI car service lifecycle listener"
@@ -60,13 +72,23 @@ internal class LifecycleAwareCarConnection(
             DO_NOT_WAIT_MILLIS,
             listener,
         ) ?: error("Unable to create the AAOS car client")
+        logDebug("event=client_created backend=aaos wait_millis=$DO_NOT_WAIT_MILLIS")
     }
 
     fun disconnect() {
         val currentCar = car
         car = null
         lifecycleListener = null
-        runCatching { currentCar?.javaClass?.getMethod("disconnect")?.invoke(currentCar) }
+        if (currentCar == null) return
+        runCatching { currentCar.javaClass.getMethod("disconnect").invoke(currentCar) }
+            .onSuccess { Log.i(TAG, "event=connection_closed backend=aaos") }
+            .onFailure { error ->
+                Log.w(TAG, "event=connection_close_failed backend=aaos", error)
+            }
+    }
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
     }
 
     private companion object {
@@ -74,5 +96,6 @@ internal class LifecycleAwareCarConnection(
         const val CAR_LIFECYCLE_LISTENER_CLASS =
             "android.car.Car\$CarServiceLifecycleListener"
         const val DO_NOT_WAIT_MILLIS = 0L
+        const val TAG = "MiniIviCarConnection"
     }
 }

@@ -74,6 +74,8 @@ class QuickControlsController(
     }
 
     fun start() {
+        if (receiverRegistered) return
+        Log.i(TAG, "event=controller_started feature=quick_controls")
         if (!receiverRegistered) {
             val filter = IntentFilter().apply {
                 addAction(WifiManager.WIFI_STATE_CHANGED_ACTION)
@@ -90,13 +92,17 @@ class QuickControlsController(
     }
 
     fun stop() {
+        if (!receiverRegistered) return
+        Log.i(TAG, "event=controller_stopping feature=quick_controls")
         if (receiverRegistered) runCatching { applicationContext.unregisterReceiver(receiver) }
         receiverRegistered = false
+        Log.i(TAG, "event=controller_stopped feature=quick_controls")
     }
 
     fun refresh() {
         bluetoothController.refresh()
         val capabilities = realCapabilities()
+        val previousCapabilities = mutableState.value.realCapabilities
         mutableState.update { current ->
             current.copy(
                 status = FeatureStatus.READY,
@@ -110,9 +116,17 @@ class QuickControlsController(
                 diagnosticMessage = null,
             )
         }
+        if (capabilities != previousCapabilities) {
+            Log.i(
+                TAG,
+                "event=capabilities_changed feature=quick_controls capabilities=0x" +
+                    capabilities.toString(16),
+            )
+        }
     }
 
     fun setEnabled(control: Int, enabled: Boolean) {
+        logDebug("event=command_received feature=quick_controls control=$control enabled=$enabled")
         when (control) {
             QuickControl.WIFI -> setWifiEnabled(enabled)
             QuickControl.BLUETOOTH -> setBluetoothEnabled(enabled)
@@ -125,8 +139,12 @@ class QuickControlsController(
     fun requestScreenOff() {
         val manager = powerManager
         val method = goToSleepMethod
-        if (manager == null || method == null) return
+        if (manager == null || method == null) {
+            Log.w(TAG, "event=command_rejected command=request_screen_off reason=unsupported")
+            return
+        }
         runCatching { method.invoke(manager, SystemClock.uptimeMillis()) }
+            .onSuccess { logDebug("event=command_applied command=request_screen_off") }
             .onFailure { publishFailure("Unable to turn the display off", it) }
     }
 
@@ -245,6 +263,7 @@ class QuickControlsController(
     }
 
     private fun publishArgumentError(message: String) {
+        Log.w(TAG, "event=command_rejected feature=quick_controls reason=${message.toEventKey()}")
         mutableState.update {
             it.copy(
                 status = FeatureStatus.ERROR,
@@ -255,7 +274,11 @@ class QuickControlsController(
     }
 
     private fun publishFailure(message: String, error: Throwable) {
-        Log.e(TAG, message, error)
+        Log.e(
+            TAG,
+            "event=operation_failed feature=quick_controls operation=${message.toEventKey()}",
+            error,
+        )
         mutableState.update {
             it.copy(
                 status = FeatureStatus.ERROR,
@@ -266,6 +289,10 @@ class QuickControlsController(
     }
 
     private fun key(control: Int) = "control_$control"
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
+    }
 
     private companion object {
         const val TAG = "MiniIviQuickControls"

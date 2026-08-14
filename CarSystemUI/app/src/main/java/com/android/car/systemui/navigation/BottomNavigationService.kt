@@ -6,6 +6,7 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.WindowManager
@@ -63,6 +64,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
         savedStateRegistryController.performAttach()
         super.onCreate()
         savedStateRegistryController.performRestore(null)
+        Log.i(TAG, "event=service_created feature=system_ui_navigation")
         windowManager = getSystemService(WindowManager::class.java)
         val provider = ViewModelProvider(this, SystemUiDependencies.from(this).viewModelFactory)
         systemUiViewModel = provider[SystemUiViewModel::class.java]
@@ -73,6 +75,9 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        logDebug(
+            "event=start_command action=${intent?.action ?: "none"} flags=$flags start_id=$startId",
+        )
         return Service.START_STICKY
     }
 
@@ -115,6 +120,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
         windowManager.addView(view, params)
         navigationView = view
         navigationLayoutParams = params
+        Log.i(TAG, "event=window_shown window=navigation_rail width=${params.width}")
     }
 
     private fun observeOverlayState() {
@@ -154,8 +160,21 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
                         state = state,
                         onDismiss = systemUiViewModel::dismissControlCenter,
                         onBrightnessChanged = controlCenterViewModel::onBrightnessChanged,
-                        onBrightnessChangeFinished = controlCenterViewModel::onBrightnessChangeFinished,
+                        onBrightnessChangeFinished = {
+                            logDebug(
+                                "event=slider_commit control=brightness value=" +
+                                    controlCenterViewModel.state.value.displayedBrightness,
+                            )
+                            controlCenterViewModel.onBrightnessChangeFinished()
+                        },
                         onVolumeChanged = controlCenterViewModel::onVolumeChanged,
+                        onVolumeChangeFinished = {
+                            logDebug(
+                                "event=slider_commit control=volume value=" +
+                                    controlCenterViewModel.state.value.audio.volume,
+                            )
+                            controlCenterViewModel.onVolumeChangeFinished()
+                        },
                         onTemperatureDecrease = controlCenterViewModel::decreaseTemperature,
                         onTemperatureIncrease = controlCenterViewModel::increaseTemperature,
                         onAcChanged = controlCenterViewModel::setAc,
@@ -210,6 +229,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
         view.requestFocus()
         overlayAnimationVisible = false
         view.post { overlayAnimationVisible = true }
+        Log.i(TAG, "event=window_shown window=control_center width=${params.width}")
     }
 
     private fun hideControlCenterWindow(animated: Boolean) {
@@ -222,12 +242,14 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
                 runCatching { windowManager.removeViewImmediate(view) }
                 overlayView = null
                 overlayLayoutParams = null
+                Log.i(TAG, "event=window_hidden window=control_center animated=$animated")
             }
         }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        logDebug("event=configuration_changed orientation=${newConfig.orientation}")
         navigationLayoutParams?.let { params ->
             params.width = navigationWidthPx()
             navigationView?.let { windowManager.updateViewLayout(it, params) }
@@ -265,6 +287,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
     }
 
     override fun onDestroy() {
+        Log.i(TAG, "event=service_destroying feature=system_ui_navigation")
         overlayRemovalJob?.cancel()
         overlayView?.let { runCatching { windowManager.removeViewImmediate(it) } }
         navigationView?.let { runCatching { windowManager.removeViewImmediate(it) } }
@@ -274,12 +297,18 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
         navigationLayoutParams = null
         viewModelStore.clear()
         super.onDestroy()
+        Log.i(TAG, "event=service_destroyed feature=system_ui_navigation")
     }
 
     override fun onBind(intent: Intent): IBinder? = super.onBind(intent)
 
     private companion object {
+        const val TAG = "MiniIviSystemUi"
         const val TYPE_NAVIGATION_BAR_PANEL = 2024
         const val OVERLAY_EXIT_DURATION_MS = 220L
+    }
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
     }
 }

@@ -4,16 +4,22 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Process
+import android.util.Log
 
 class CarServiceBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in SUPPORTED_ACTIONS) return
-        if (Process.myUid() / PER_USER_RANGE != 0) return
+        if (Process.myUid() / PER_USER_RANGE != 0) {
+            Log.i(TAG, "event=boot_ignored reason=secondary_user action=${intent.action}")
+            return
+        }
+        Log.i(TAG, "event=boot_received action=${intent.action}")
         context.startService(Intent(context, MiniIviCarService::class.java))
     }
 
     private companion object {
         const val PER_USER_RANGE = 100_000
+        const val TAG = "MiniIviCarBoot"
         val SUPPORTED_ACTIONS = setOf(
             Intent.ACTION_LOCKED_BOOT_COMPLETED,
             Intent.ACTION_BOOT_COMPLETED,

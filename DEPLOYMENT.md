@@ -114,20 +114,37 @@ Push-Location .\MiniIviMaps
 Pop-Location
 ```
 
-Push the APK and default location permissions:
+MiniIviMaps shares the system UID. When upgrading an existing Map installation that used
+its own UID, remove its per-user installations before replacing the system APK. This
+one-time migration clears Map data for those users:
 
 ```powershell
-adb shell "mkdir -p /system/app/MiniIviMaps /system/etc/default-permissions"
-adb push .\MiniIviMaps\app\build\outputs\apk\debug\app-debug.apk /system/app/MiniIviMaps/MiniIviMaps.apk
-adb push .\MiniIviMaps\system\etc\default-permissions\default-permissions-com.miniivi.maps.xml /system/etc/default-permissions/default-permissions-com.miniivi.maps.xml
-adb shell "chmod 0644 /system/app/MiniIviMaps/MiniIviMaps.apk /system/etc/default-permissions/default-permissions-com.miniivi.maps.xml"
+adb shell "pm uninstall --user 0 com.miniivi.maps"
+adb shell "pm uninstall --user 10 com.miniivi.maps"
 ```
 
-After reboot, verify the package path, location grants, full-screen map, and launcher preview:
+Push the APK and fixed default location permissions:
+
+```powershell
+adb shell "mkdir -p /system/priv-app/MiniIviMaps /system/etc/default-permissions"
+adb push .\MiniIviMaps\app\build\outputs\apk\debug\app-debug.apk /system/priv-app/MiniIviMaps/MiniIviMaps.apk
+adb push .\MiniIviMaps\system\etc\default-permissions\default-permissions-com.miniivi.maps.xml /system/etc/default-permissions/default-permissions-com.miniivi.maps.xml
+adb shell "rm -rf /system/app/MiniIviMaps"
+adb shell "chmod 0644 /system/priv-app/MiniIviMaps/MiniIviMaps.apk /system/etc/default-permissions/default-permissions-com.miniivi.maps.xml"
+adb reboot
+adb wait-for-device
+adb shell getprop sys.boot_completed
+adb shell "pm install-existing --user 0 com.miniivi.maps"
+adb shell "pm install-existing --user 10 com.miniivi.maps"
+```
+
+After boot completes, verify the package path, system UID, and fixed location grants for
+both users before checking the full-screen map and launcher preview:
 
 ```powershell
 adb shell pm path com.miniivi.maps
-adb shell "dumpsys package com.miniivi.maps | grep -E 'ACCESS_FINE_LOCATION: granted|ACCESS_COARSE_LOCATION: granted'"
+adb shell "cmd package list packages -U com.miniivi.maps"
+adb shell "dumpsys package com.miniivi.maps | grep -E 'User (0|10):|ACCESS_FINE_LOCATION: granted=true|ACCESS_COARSE_LOCATION: granted=true|ACCESS_BACKGROUND_LOCATION: granted=true'"
 ```
 
 ## 5. CarLauncher
@@ -195,3 +212,46 @@ adb logcat -d -v brief | Select-String -CaseSensitive -Pattern `
 ```
 
 The deployment passes when all package paths and hashes match, the expected permissions are granted, CarService shows both clients, Maps works in full-screen and preview modes, media playback works, and the log contains no MiniIVI crash or permission denial.
+
+## 7. Runtime Flow Logging
+
+MiniIVI runtime logs use stable tags beginning with `MiniIvi` and structured English messages in the form `event=<name> key=value`. `INFO` records lifecycle, connection, backend, capability, and recovery transitions. `WARN` and `ERROR` records describe degraded or failed operations. High-volume flow details use `DEBUG` and are guarded with `Log.isLoggable`.
+
+Follow all MiniIVI processes in timestamp order:
+
+```powershell
+adb logcat -v threadtime | Select-String -CaseSensitive -Pattern 'MiniIvi'
+```
+
+Enable `DEBUG` only for the components needed by the current trace. The common tags are:
+
+```powershell
+$miniIviDebugTags = @(
+    'MiniIviCarService',
+    'MiniIviCarClient',
+    'MiniIviCarConnection',
+    'MiniIviCarHvac',
+    'MiniIviCarAudio',
+    'MiniIviBrightness',
+    'MiniIviVehicleStatus',
+    'MiniIviQuickControls',
+    'MiniIviBluetooth',
+    'MiniIviSystemUi',
+    'MiniIviNavigation',
+    'MiniIviLauncher',
+    'MiniIviLauncherLife',
+    'MiniIviMedia',
+    'MiniIviMapPreview',
+    'MiniIviMaps',
+    'MiniIviLocation'
+)
+$miniIviDebugTags | ForEach-Object { adb shell setprop "log.tag.$_" DEBUG }
+```
+
+Restore the normal production threshold after tracing:
+
+```powershell
+$miniIviDebugTags | ForEach-Object { adb shell setprop "log.tag.$_" INFO }
+```
+
+The logs intentionally omit location coordinates, Bluetooth addresses and names, media titles and URIs, Binder tokens, complete state objects, polling ticks, property callback samples, and intermediate brightness or volume slider writes.
