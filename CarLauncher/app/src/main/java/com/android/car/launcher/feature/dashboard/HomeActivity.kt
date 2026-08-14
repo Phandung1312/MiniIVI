@@ -24,14 +24,14 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class HomeActivity : ComponentActivity() {
-    private val tag = javaClass.simpleName
     private val viewModel by viewModels<DashboardViewModel>()
     private var destination by mutableStateOf(HomeDestination.Home)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(tag, "onCreate")
+        Log.i(TAG, "event=activity_created component=HomeActivity")
         destination = HomeStartDestination.from(intent)
+        logDebug("event=destination_selected destination=${destination.name.lowercase()}")
         setContent {
             MiniIviTheme {
                 val state by viewModel.state.collectAsState()
@@ -56,20 +56,22 @@ class HomeActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         destination = HomeStartDestination.from(intent)
+        logDebug("event=destination_selected destination=${destination.name.lowercase()} source=new_intent")
     }
 
     override fun onResume() {
         super.onResume()
-        Log.d(tag, "onResume")
+        logDebug("event=activity_resumed component=HomeActivity")
         viewModel.refresh()
     }
 
     override fun onPause() {
-        Log.d(tag, "onPause")
+        logDebug("event=activity_paused component=HomeActivity")
         super.onPause()
     }
 
     private fun openApp(app: HomeApp) {
+        logDebug("event=app_launch_requested app_id=${app.id}")
         when (val target = app.target) {
             HomeAppTarget.Media -> navigateTo(AppDestination.Media)
             HomeAppTarget.Bluetooth -> navigateTo(AppDestination.Bluetooth)
@@ -108,14 +110,32 @@ class HomeActivity : ComponentActivity() {
 
     private fun launch(intent: Intent): Boolean = try {
         startActivity(intent)
+        Log.i(
+            TAG,
+            "event=app_launch_completed target=${intent.component ?: intent.action ?: "unknown"}",
+        )
         true
     } catch (exception: ActivityNotFoundException) {
-        Log.w(tag, "No activity can handle ${intent.action}", exception)
+        Log.w(
+            TAG,
+            "event=app_launch_failed target=${intent.component ?: intent.action ?: "unknown"} " +
+                "reason=not_found",
+            exception,
+        )
         false
     }
 
     private fun showAppUnavailable() {
+        Log.w(TAG, "event=app_unavailable")
         Toast.makeText(this, R.string.app_not_available, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
+    }
+
+    private companion object {
+        const val TAG = "MiniIviLauncher"
     }
 
 }

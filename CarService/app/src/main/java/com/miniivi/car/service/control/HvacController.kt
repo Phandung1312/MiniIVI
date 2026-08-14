@@ -90,15 +90,19 @@ class HvacController(
     private var driverArea: Int? = null
     private var passengerArea: Int? = null
     private val extendedConfigs = mutableMapOf<Int, Any>()
+    private var propertyEventErrorReported = false
 
     fun start() {
         if (started) return
         started = true
+        Log.i(TAG, "event=controller_started feature=hvac")
         startConnectionLoop()
     }
 
     fun stop() {
+        if (!started) return
         started = false
+        Log.i(TAG, "event=controller_stopping feature=hvac")
         connectionJob?.cancel()
         connectionJob = null
         disconnectBlocking()
@@ -111,6 +115,7 @@ class HvacController(
             available = true,
             diagnosticMessage = "HVAC controller stopped",
         )
+        Log.i(TAG, "event=controller_stopped feature=hvac")
     }
 
     fun refresh() {
@@ -137,6 +142,9 @@ class HvacController(
                 else -> null
             }
             if (target == null) {
+                logDebug(
+                    "event=command_applied command=set_temperature backend=mock zone=$zone value=$celsius",
+                )
                 val key = if (zone == HvacZone.LEFT) KEY_DRIVER_TEMPERATURE else KEY_PASSENGER_TEMPERATURE
                 preferences.edit().putFloat(key, celsius.coerceIn(DEFAULT_MINIMUM, DEFAULT_MAXIMUM)).apply()
                 publishClimateState()
@@ -172,6 +180,11 @@ class HvacController(
                     }
                 }
                 publishClimateState()
+            }.onSuccess {
+                logDebug(
+                    "event=command_applied command=set_temperature backend=aaos zone=$zone " +
+                        "value=$requested",
+                )
             }.onFailure { error -> handlePlatformFailure("Unable to set HVAC temperature", error) }
         }
     }
@@ -181,6 +194,7 @@ class HvacController(
             val area = acArea
             val manager = propertyManager
             if (area == null || manager == null) {
+                logDebug("event=command_applied command=set_ac backend=mock enabled=$enabled")
                 updateMockBoolean(KEY_AC, enabled)
                 publishClimateState()
                 return@launch
@@ -202,6 +216,8 @@ class HvacController(
                 }
                 updateMockBoolean(KEY_AC, enabled)
                 publishClimateState()
+            }.onSuccess {
+                logDebug("event=command_applied command=set_ac backend=aaos enabled=$enabled")
             }.onFailure { error -> handlePlatformFailure("Unable to set A/C state", error) }
         }
     }
@@ -329,6 +345,7 @@ class HvacController(
         connectionJob?.cancel()
         connectionJob = scope.launch {
             var retryDelay = INITIAL_RETRY_MILLIS
+            var lastLoggedRetryDelay = -1L
             while (isActive && started && propertyManager == null && carConnection.car == null) {
                 mutableState.value = mutableState.value.copy(
                     status = FeatureStatus.CONNECTING,
@@ -337,7 +354,14 @@ class HvacController(
                 )
                 val connected = runCatching { carConnection.connect() }
                     .onFailure { error ->
-                        Log.e(TAG, "Unable to connect to AAOS climate properties", error)
+                        if (retryDelay != lastLoggedRetryDelay) {
+                            Log.w(
+                                TAG,
+                                "event=connection_retry feature=hvac delay_ms=$retryDelay",
+                                error,
+                            )
+                            lastLoggedRetryDelay = retryDelay
+                        }
                         disconnectBlocking()
                         mutableState.value = HvacState(
                             status = FeatureStatus.UNAVAILABLE,
@@ -356,8 +380,15 @@ class HvacController(
     private fun onCarReady(lifecycleCar: Any) {
         if (!started || propertyManager != null) return
         runCatching { connectPropertyManager(lifecycleCar) }
+            .onSuccess {
+                Log.i(
+                    TAG,
+                    "event=backend_ready feature=hvac backend=aaos capabilities=0x" +
+                        realCapabilities().toString(16),
+                )
+            }
             .onFailure { error ->
-                Log.e(TAG, "Unable to connect to AAOS climate properties", error)
+                Log.e(TAG, "event=backend_initialization_failed feature=hvac backend=aaos", error)
                 clearPropertyManager()
                 mutableState.value = HvacState(
                     status = FeatureStatus.UNAVAILABLE,
@@ -368,6 +399,7 @@ class HvacController(
     }
 
     private fun onCarUnavailable() {
+        Log.w(TAG, "event=backend_unavailable feature=hvac backend=aaos")
         clearPropertyManager(unregisterCallback = false)
         mutableState.value = HvacState(
             status = FeatureStatus.UNAVAILABLE,
@@ -516,6 +548,10 @@ class HvacController(
                 value.javaClass.getMethod("getStatus").invoke(value) as Int
             }.getOrDefault(STATUS_AVAILABLE)
             if (status != STATUS_AVAILABLE) return
+            if (propertyEventErrorReported) {
+                propertyEventErrorReported = false
+                Log.i(TAG, "event=property_recovered feature=hvac")
+            }
             val propertyId = value.javaClass.getMethod("getPropertyId").invoke(value) as Int
             val areaId = value.javaClass.getMethod("getAreaId").invoke(value) as Int
             val data = value.javaClass.getMethod("getValue").invoke(value)
@@ -534,7 +570,12 @@ class HvacController(
                 }
             }
             publishClimateState()
-        }.onFailure { error -> Log.w(TAG, "Ignoring an invalid HVAC property event", error) }
+        }.onFailure { error ->
+            if (!propertyEventErrorReported) {
+                propertyEventErrorReported = true
+                Log.w(TAG, "event=property_event_ignored feature=hvac reason=invalid", error)
+            }
+        }
     }
 
     private fun updateZoneTemperature(areaId: Int, temperature: Float) {
@@ -586,6 +627,10 @@ class HvacController(
             val config = extendedConfigs[propertyId]
             val manager = propertyManager
             if (config == null || manager == null) {
+                logDebug(
+                    "event=command_applied command=set_boolean_control backend=mock " +
+                        "capability=0x${capability.toString(16)} enabled=$enabled",
+                )
                 updateMockBoolean(key, enabled)
                 publishClimateState()
                 return@launch
@@ -604,7 +649,13 @@ class HvacController(
                     Int::class.javaPrimitiveType,
                     Boolean::class.javaPrimitiveType,
                 ).invoke(manager, propertyId, area, enabled)
-            }.onSuccess { publishClimateState() }
+            }.onSuccess {
+                publishClimateState()
+                logDebug(
+                    "event=command_applied command=set_boolean_control backend=aaos " +
+                        "capability=0x${capability.toString(16)} enabled=$enabled",
+                )
+            }
                 .onFailure { handleExtendedFailure("Unable to change climate control", it, capability) }
         }
     }
@@ -631,6 +682,10 @@ class HvacController(
             } else value.coerceIn(0, 7)
             val area = config?.let { zoneArea(zone)?.takeIf { target -> target in getAreaIds(it) } }
             if (config == null || manager == null || area == null) {
+                logDebug(
+                    "event=command_applied command=set_zone_control backend=mock zone=$zone " +
+                        "capability=0x${capability.toString(16)} value=$requested",
+                )
                 preferences.edit().putInt(key, requested).apply()
                 publishClimateState()
                 return@launch
@@ -642,7 +697,13 @@ class HvacController(
                     Int::class.javaPrimitiveType,
                     Int::class.javaPrimitiveType,
                 ).invoke(manager, propertyId, area, requested)
-            }.onSuccess { publishClimateState() }
+            }.onSuccess {
+                publishClimateState()
+                logDebug(
+                    "event=command_applied command=set_zone_control backend=aaos zone=$zone " +
+                        "capability=0x${capability.toString(16)} value=$requested",
+                )
+            }
                 .onFailure { handleExtendedFailure("Unable to change zoned climate control", it, capability) }
         }
     }
@@ -653,6 +714,10 @@ class HvacController(
             val manager = propertyManager
             val area = config?.let(::getAreaIds)?.firstOrNull() ?: 0
             if (config == null || manager == null) {
+                logDebug(
+                    "event=command_applied command=set_global_control backend=mock " +
+                        "capability=0x${capability.toString(16)} value=$value",
+                )
                 preferences.edit().putInt(key, value).apply()
                 publishClimateState()
                 return@launch
@@ -664,7 +729,13 @@ class HvacController(
                     Int::class.javaPrimitiveType,
                     Int::class.javaPrimitiveType,
                 ).invoke(manager, propertyId, area, value)
-            }.onSuccess { publishClimateState() }
+            }.onSuccess {
+                publishClimateState()
+                logDebug(
+                    "event=command_applied command=set_global_control backend=aaos " +
+                        "capability=0x${capability.toString(16)} value=$value",
+                )
+            }
                 .onFailure { handleExtendedFailure("Unable to change global climate control", it, capability) }
         }
     }
@@ -845,7 +916,12 @@ class HvacController(
     }
 
     private fun handleExtendedFailure(message: String, error: Throwable, capability: Long) {
-        Log.e(TAG, "$message for capability $capability", error)
+        Log.e(
+            TAG,
+            "event=operation_failed feature=hvac operation=${message.toEventKey()} " +
+                "capability=0x${capability.toString(16)}",
+            error,
+        )
         mutableClimateState.update {
             it.copy(
                 status = FeatureStatus.ERROR,
@@ -877,7 +953,7 @@ class HvacController(
     )
 
     private fun handlePlatformFailure(message: String, error: Throwable) {
-        Log.e(TAG, message, error)
+        Log.e(TAG, "event=operation_failed feature=hvac operation=${message.toEventKey()}", error)
         mutableState.value = mutableState.value.copy(
             status = FeatureStatus.ERROR,
             available = false,
@@ -889,6 +965,7 @@ class HvacController(
     }
 
     private fun publishArgumentError(message: String) {
+        Log.w(TAG, "event=command_rejected feature=hvac reason=${message.toEventKey()}")
         mutableState.value = mutableState.value.copy(
             status = FeatureStatus.ERROR,
             errorCode = CarServiceError.INVALID_ARGUMENT,
@@ -897,6 +974,9 @@ class HvacController(
     }
 
     private fun publishUnavailable(message: String) {
+        if (mutableState.value.status != FeatureStatus.UNAVAILABLE) {
+            Log.w(TAG, "event=feature_unavailable feature=hvac reason=${message.toEventKey()}")
+        }
         mutableState.value = mutableState.value.copy(
             status = FeatureStatus.UNAVAILABLE,
             available = false,
@@ -910,6 +990,10 @@ class HvacController(
         carConnection.disconnect()
     }
 
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
+    }
+
     private fun clearPropertyManager(unregisterCallback: Boolean = true) {
         val manager = propertyManager
         val callback = propertyCallback
@@ -919,7 +1003,9 @@ class HvacController(
                     it.name == "unregisterCallback" && it.parameterTypes.size == 1
                 }
                 unregister?.invoke(manager, callback)
-            }.onFailure { Log.w(TAG, "Unable to unregister the HVAC callback", it) }
+            }.onFailure {
+                Log.w(TAG, "event=callback_unregister_failed feature=hvac", it)
+            }
         }
         propertyCallback = null
         propertyManager = null
@@ -930,6 +1016,7 @@ class HvacController(
         driverArea = null
         passengerArea = null
         extendedConfigs.clear()
+        propertyEventErrorReported = false
     }
 
     private companion object {

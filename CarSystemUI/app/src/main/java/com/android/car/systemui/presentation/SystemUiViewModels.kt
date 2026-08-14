@@ -49,9 +49,8 @@ class SystemUiViewModel(
     val state = mutableState.asStateFlow()
 
     fun toggleControlCenter() {
-        mutableState.value = mutableState.value.copy(
-            controlCenterVisible = !mutableState.value.controlCenterVisible,
-        )
+        val visible = !mutableState.value.controlCenterVisible
+        mutableState.value = mutableState.value.copy(controlCenterVisible = visible)
     }
 
     fun dismissControlCenter() {
@@ -72,6 +71,7 @@ class SystemUiViewModel(
         dismissControlCenter()
         navigationRepository.openAppList()
     }
+
 }
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)
@@ -149,8 +149,12 @@ class ControlCenterViewModel(
         val audio = audioRepository.state.value
         if (!audio.available) return
         val volume = AudioLevelMapper.toVolume(progress, audio.minimum, audio.maximum)
-        if (volume != audio.volume) audioRepository.setVolume(volume)
+        if (volume != audio.volume) {
+            audioRepository.setVolume(volume)
+        }
     }
+
+    fun onVolumeChangeFinished() = Unit
 
     fun decreaseTemperature(zone: ClimateZone) =
         hvacRepository.adjustTemperature(zone, -TEMPERATURE_STEP)

@@ -55,13 +55,32 @@ import kotlinx.coroutines.launch
 class MapActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d(TAG, "onCreate")
+        Log.i(TAG, "event=activity_created component=MapActivity")
         val locationTracker = (application as MapsApplication).locationTracker
         setContent {
             MapsTheme {
                 MapRoute(locationTracker = locationTracker, onFinish = ::finish)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (Log.isLoggable(TAG, Log.DEBUG)) {
+            Log.d(TAG, "event=activity_resumed component=MapActivity")
+        }
+    }
+
+    override fun onPause() {
+        if (Log.isLoggable(TAG, Log.DEBUG)) {
+            Log.d(TAG, "event=activity_paused component=MapActivity")
+        }
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        Log.i(TAG, "event=activity_destroyed component=MapActivity")
+        super.onDestroy()
     }
 
     private companion object {

@@ -99,6 +99,7 @@ fun ControlCenterOverlay(
     onBrightnessChanged: (Float) -> Unit,
     onBrightnessChangeFinished: () -> Unit,
     onVolumeChanged: (Float) -> Unit,
+    onVolumeChangeFinished: () -> Unit = {},
     onTemperatureDecrease: (ClimateZone) -> Unit,
     onTemperatureIncrease: (ClimateZone) -> Unit,
     onAcChanged: (Boolean) -> Unit,
@@ -173,6 +174,7 @@ fun ControlCenterOverlay(
                                 onBrightnessChanged = onBrightnessChanged,
                                 onBrightnessChangeFinished = onBrightnessChangeFinished,
                                 onVolumeChanged = onVolumeChanged,
+                                onVolumeChangeFinished = onVolumeChangeFinished,
                                 onQuickControlChanged = onQuickControlChanged,
                                 onOpenWifiSettings = onOpenWifiSettings,
                                 onOpenWirelessSettings = onOpenWirelessSettings,
@@ -519,6 +521,7 @@ private fun UtilityDeck(
     onBrightnessChanged: (Float) -> Unit,
     onBrightnessChangeFinished: () -> Unit,
     onVolumeChanged: (Float) -> Unit,
+    onVolumeChangeFinished: () -> Unit,
     onQuickControlChanged: (Int, Boolean) -> Unit,
     onOpenWifiSettings: () -> Unit,
     onOpenWirelessSettings: () -> Unit,
@@ -548,7 +551,7 @@ private fun UtilityDeck(
                 state.audio.progress,
                 state.audio.available,
                 onVolumeChanged,
-                {},
+                onVolumeChangeFinished,
                 compact,
             )
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

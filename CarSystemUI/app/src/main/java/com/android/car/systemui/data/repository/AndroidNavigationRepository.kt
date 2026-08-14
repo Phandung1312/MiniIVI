@@ -12,9 +12,13 @@ import android.view.KeyEvent
 class AndroidNavigationRepository(
     private val currentUserProvider: CurrentUserProvider,
 ) : NavigationRepository {
-    override fun goHome() = injectKey(KeyEvent.KEYCODE_HOME)
+    override fun goHome() {
+        logDebug("event=navigation_requested destination=home")
+        injectKey(KeyEvent.KEYCODE_HOME)
+    }
 
     override fun openSettings() {
+        logDebug("event=navigation_requested destination=settings")
         runCatching {
             val user = currentUserProvider.userHandle()
             val launcherApps = currentUserProvider.context().getSystemService(LauncherApps::class.java)
@@ -28,12 +32,14 @@ class AndroidNavigationRepository(
                     Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
             }
+            Log.i(TAG, "event=navigation_completed destination=settings")
         }.onFailure { error ->
-            Log.e(TAG, "Unable to launch Settings for foreground user", error)
+            Log.e(TAG, "event=navigation_failed destination=settings", error)
         }
     }
 
     override fun openAppList() {
+        logDebug("event=navigation_requested destination=app_list")
         launch(
             Intent(Intent.ACTION_MAIN)
                 .setClassName(CAR_LAUNCHER_PACKAGE, APP_LIST_ACTIVITY)
@@ -47,34 +53,47 @@ class AndroidNavigationRepository(
     }
 
     override fun openWifiSettings() {
+        logDebug("event=navigation_requested destination=wifi_settings")
         launch(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     override fun openWirelessSettings() {
+        logDebug("event=navigation_requested destination=wireless_settings")
         launch(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     override fun openBluetoothSettings() {
+        logDebug("event=navigation_requested destination=bluetooth_settings")
         launch(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     override fun openCamera(): Boolean {
+        logDebug("event=navigation_requested destination=camera")
         val intent = Intent(CAMERA_ACTION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return runCatching {
             val context = currentUserProvider.context()
             context.packageManager.resolveActivity(intent, 0) != null && launch(intent)
-        }.onFailure { error -> Log.e(TAG, "Unable to resolve the camera activity", error) }
+        }.onFailure { error -> Log.e(TAG, "event=navigation_failed destination=camera", error) }
             .getOrDefault(false)
     }
 
     private fun launch(intent: Intent): Boolean = try {
             currentUserProvider.launch(intent)
+            Log.i(
+                TAG,
+                "event=navigation_completed destination=${intent.component ?: intent.action}",
+            )
             true
         } catch (error: ActivityNotFoundException) {
-            Log.e(TAG, "Unable to launch ${intent.component ?: intent.action}", error)
+            Log.e(
+                TAG,
+                "event=navigation_failed destination=${intent.component ?: intent.action} " +
+                    "reason=not_found",
+                error,
+            )
             false
         } catch (error: SecurityException) {
-            Log.e(TAG, "Unable to launch activity for current user", error)
+            Log.e(TAG, "event=navigation_failed reason=security_exception", error)
             false
         }
 
@@ -98,11 +117,18 @@ class AndroidNavigationRepository(
                 KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0),
                 INJECT_INPUT_EVENT_MODE_ASYNC,
             )
-        }.onFailure { error -> Log.e(TAG, "Unable to inject navigation key $keyCode", error) }
+            Log.i(TAG, "event=navigation_completed destination=key key_code=$keyCode")
+        }.onFailure { error ->
+            Log.e(TAG, "event=navigation_failed destination=key key_code=$keyCode", error)
+        }
+    }
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
     }
 
     private companion object {
-        const val TAG = "CarSystemUI-Navigation"
+        const val TAG = "MiniIviNavigation"
         const val INJECT_INPUT_EVENT_MODE_ASYNC = 0
         const val CAR_SETTINGS_PACKAGE = "com.android.car.settings"
         const val CAR_LAUNCHER_PACKAGE = "com.android.car.launcher"

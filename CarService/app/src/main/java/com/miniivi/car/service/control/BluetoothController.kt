@@ -85,6 +85,8 @@ class BluetoothController(
             publishUnavailable("Bluetooth is not supported")
             return
         }
+        if (receiverRegistered) return
+        Log.i(TAG, "event=controller_started feature=bluetooth")
         if (!receiverRegistered) {
             val filter = IntentFilter().apply {
                 addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
@@ -108,13 +110,17 @@ class BluetoothController(
     }
 
     fun stop() {
+        if (!receiverRegistered) return
+        Log.i(TAG, "event=controller_stopping feature=bluetooth")
         if (receiverRegistered) runCatching { applicationContext.unregisterReceiver(receiver) }
         receiverRegistered = false
+        Log.i(TAG, "event=controller_stopped feature=bluetooth")
     }
 
     @SuppressLint("MissingPermission")
     fun refresh() {
         val realAdapter = adapter ?: return publishUnavailable("Bluetooth is not supported")
+        val previous = mutableState.value
         runCatching {
             val enabled = realAdapter.isEnabled
             mutableState.value.copy(
@@ -132,7 +138,16 @@ class BluetoothController(
                 errorCode = CarServiceError.NONE,
                 diagnosticMessage = null,
             )
-        }.onSuccess { mutableState.value = it }
+        }.onSuccess {
+            mutableState.value = it
+            if (previous.status != it.status || previous.enabled != it.enabled) {
+                Log.i(
+                    TAG,
+                    "event=state_changed feature=bluetooth status=${it.status} " +
+                        "enabled=${it.enabled} paired_count=${it.pairedDevices.size}",
+                )
+            }
+        }
             .onFailure { publishFailure("Unable to refresh Bluetooth state", it) }
     }
 
@@ -142,6 +157,8 @@ class BluetoothController(
         return runCatching {
             @Suppress("DEPRECATION")
             if (enabled) realAdapter.enable() else realAdapter.disable()
+        }.onSuccess { accepted ->
+            logDebug("event=command_result command=set_bluetooth enabled=$enabled accepted=$accepted")
         }.onFailure { publishFailure("Unable to change Bluetooth state", it) }
             .getOrDefault(false)
     }
@@ -149,12 +166,17 @@ class BluetoothController(
     @SuppressLint("MissingPermission")
     fun requestDiscovery(): Boolean {
         val realAdapter = adapter ?: return false
-        if (!mutableState.value.enabled) return false
+        if (!mutableState.value.enabled) {
+            Log.w(TAG, "event=command_rejected command=bluetooth_discovery reason=disabled")
+            return false
+        }
         return runCatching {
             if (realAdapter.isDiscovering) realAdapter.cancelDiscovery()
             val accepted = realAdapter.startDiscovery()
             if (accepted) mutableState.update(BluetoothStateReducer::discoveryStarted)
             accepted
+        }.onSuccess { accepted ->
+            logDebug("event=command_result command=bluetooth_discovery accepted=$accepted")
         }.onFailure { publishFailure("Unable to start Bluetooth discovery", it) }
             .getOrDefault(false)
     }
@@ -163,10 +185,20 @@ class BluetoothController(
     fun renameLocalDevice(name: String): Boolean {
         val normalized = name.trim()
         val realAdapter = adapter ?: return false
-        if (!mutableState.value.enabled || normalized.isEmpty()) return false
+        if (!mutableState.value.enabled || normalized.isEmpty()) {
+            Log.w(
+                TAG,
+                "event=command_rejected command=bluetooth_rename reason=disabled_or_empty",
+            )
+            return false
+        }
         return runCatching { realAdapter.setName(normalized) }
             .onSuccess { accepted ->
                 if (accepted) mutableState.update { it.copy(localName = normalized) }
+                logDebug(
+                    "event=command_result command=bluetooth_rename accepted=$accepted " +
+                        "name_length=${normalized.length}",
+                )
             }
             .onFailure { publishFailure("Unable to rename the local Bluetooth device", it) }
             .getOrDefault(false)
@@ -178,28 +210,46 @@ class BluetoothController(
             BluetoothAdapter.ACTION_STATE_CHANGED -> {
                 when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
                     BluetoothAdapter.STATE_ON -> {
+                        Log.i(TAG, "event=adapter_state_changed feature=bluetooth enabled=true")
                         mutableState.update { BluetoothStateReducer.adapterChanged(it, true) }
                         refresh()
                     }
-                    BluetoothAdapter.STATE_OFF -> mutableState.update {
-                        BluetoothStateReducer.adapterChanged(it, false)
+                    BluetoothAdapter.STATE_OFF -> {
+                        Log.i(TAG, "event=adapter_state_changed feature=bluetooth enabled=false")
+                        mutableState.update { BluetoothStateReducer.adapterChanged(it, false) }
                     }
                 }
             }
-            BluetoothAdapter.ACTION_DISCOVERY_STARTED -> mutableState.update(
-                BluetoothStateReducer::discoveryStarted,
-            )
-            BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> mutableState.update(
-                BluetoothStateReducer::discoveryFinished,
-            )
+            BluetoothAdapter.ACTION_DISCOVERY_STARTED -> {
+                Log.i(TAG, "event=discovery_started feature=bluetooth")
+                mutableState.update(BluetoothStateReducer::discoveryStarted)
+            }
+            BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
+                Log.i(
+                    TAG,
+                    "event=discovery_finished feature=bluetooth " +
+                        "nearby_count=${mutableState.value.nearbyDevices.size}",
+                )
+                mutableState.update(BluetoothStateReducer::discoveryFinished)
+            }
             BluetoothDevice.ACTION_FOUND -> intent.deviceInfo()?.let { device ->
                 mutableState.update { BluetoothStateReducer.nearbyDevice(it, device) }
             }
             BluetoothDevice.ACTION_ACL_CONNECTED -> intent.deviceInfo()?.let { device ->
                 mutableState.update { BluetoothStateReducer.connectedDevice(it, device) }
+                Log.i(
+                    TAG,
+                    "event=device_connection_changed feature=bluetooth connected=true " +
+                        "connected_count=${mutableState.value.connectedDevices.size}",
+                )
             }
             BluetoothDevice.ACTION_ACL_DISCONNECTED -> intent.deviceInfo()?.let { device ->
                 mutableState.update { BluetoothStateReducer.disconnectedDevice(it, device.address) }
+                Log.i(
+                    TAG,
+                    "event=device_connection_changed feature=bluetooth connected=false " +
+                        "connected_count=${mutableState.value.connectedDevices.size}",
+                )
             }
             BluetoothDevice.ACTION_NAME_CHANGED -> intent.deviceInfo()?.let { device ->
                 mutableState.update { BluetoothStateReducer.renamedDevice(it, device) }
@@ -237,6 +287,9 @@ class BluetoothController(
     )
 
     private fun publishUnavailable(message: String) {
+        if (mutableState.value.status != FeatureStatus.UNAVAILABLE) {
+            Log.w(TAG, "event=feature_unavailable feature=bluetooth reason=${message.toEventKey()}")
+        }
         mutableState.value = BluetoothFeatureState(
             status = FeatureStatus.UNAVAILABLE,
             available = false,
@@ -247,7 +300,11 @@ class BluetoothController(
     }
 
     private fun publishFailure(message: String, error: Throwable) {
-        Log.e(TAG, message, error)
+        Log.e(
+            TAG,
+            "event=operation_failed feature=bluetooth operation=${message.toEventKey()}",
+            error,
+        )
         mutableState.update {
             it.copy(
                 status = FeatureStatus.ERROR,
@@ -260,5 +317,9 @@ class BluetoothController(
     private companion object {
         const val TAG = "MiniIviBluetooth"
         const val UNAVAILABLE_BLUETOOTH_ADDRESS = "02:00:00:00:00:00"
+    }
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
     }
 }

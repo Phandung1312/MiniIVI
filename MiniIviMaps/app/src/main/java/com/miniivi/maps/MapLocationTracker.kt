@@ -10,6 +10,7 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +47,12 @@ internal class MapLocationTracker(context: Context) {
             "MapLocationTracker must be started on the main thread"
         }
         consumerCount += 1
-        if (consumerCount == 1) startTracking()
+        if (consumerCount == 1) {
+            Log.i(TAG, "event=tracking_started consumer_count=$consumerCount")
+            startTracking()
+        } else {
+            logDebug("event=consumer_added consumer_count=$consumerCount")
+        }
     }
 
     fun stop() {
@@ -54,11 +60,17 @@ internal class MapLocationTracker(context: Context) {
             "MapLocationTracker must be stopped on the main thread"
         }
         consumerCount = (consumerCount - 1).coerceAtLeast(0)
-        if (consumerCount == 0) stopTracking()
+        if (consumerCount == 0) {
+            stopTracking()
+            Log.i(TAG, "event=tracking_stopped consumer_count=0")
+        } else {
+            logDebug("event=consumer_removed consumer_count=$consumerCount")
+        }
     }
 
     fun refreshPermission() {
         if (consumerCount == 0) return
+        logDebug("event=permission_refresh_requested")
         stopTracking()
         startTracking()
     }
@@ -67,6 +79,11 @@ internal class MapLocationTracker(context: Context) {
     private fun startTracking() {
         val permissionGranted = hasLocationPermission(appContext)
         if (!permissionGranted) {
+            if (mutableState.value.permissionGranted || mutableState.value.locating) {
+                Log.w(TAG, "event=permission_changed granted=false")
+            } else {
+                Log.i(TAG, "event=permission_unavailable")
+            }
             mutableState.value = mutableState.value.copy(
                 permissionGranted = false,
                 locating = false,
@@ -78,6 +95,11 @@ internal class MapLocationTracker(context: Context) {
         val enabledProviders = runCatching { locationManager.getProviders(true) }
             .getOrDefault(emptyList())
             .filter { it == LocationManager.GPS_PROVIDER || it == LocationManager.NETWORK_PROVIDER }
+        Log.i(
+            TAG,
+            "event=providers_selected enabled_count=${enabledProviders.size} " +
+                "has_cached_position=${mutableState.value.position != null}",
+        )
         val systemPosition = enabledProviders
             .asSequence()
             .mapNotNull { provider ->
@@ -108,6 +130,7 @@ internal class MapLocationTracker(context: Context) {
                 override fun onProviderEnabled(provider: String) = Unit
 
                 override fun onProviderDisabled(provider: String) {
+                    Log.i(TAG, "event=provider_disabled provider=$provider")
                     unregisterProvider(provider)
                     if (listeners.isEmpty()) {
                         mutableState.value = mutableState.value.copy(locating = false)
@@ -133,6 +156,8 @@ internal class MapLocationTracker(context: Context) {
                     Looper.getMainLooper(),
                 )
                 listeners[provider] = listener
+            }.onFailure { error ->
+                Log.w(TAG, "event=provider_registration_failed provider=$provider", error)
             }
         }
 
@@ -157,7 +182,11 @@ internal class MapLocationTracker(context: Context) {
 
     private fun acceptLocation(location: Location) {
         val position = location.toMapPosition()
-        if (!MapPositionPolicy.isValid(position)) return
+        if (!MapPositionPolicy.isValid(position)) {
+            Log.w(TAG, "event=location_ignored reason=invalid")
+            return
+        }
+        val firstLiveFix = !mutableState.value.hasLiveFix
         persist(position)
         handler.removeCallbacks(locationTimeout)
         mutableState.value = MapLocationState(
@@ -166,10 +195,14 @@ internal class MapLocationTracker(context: Context) {
             locating = false,
             hasLiveFix = true,
         )
+        if (firstLiveFix) {
+            Log.i(TAG, "event=live_fix_acquired provider=${location.provider ?: "unknown"}")
+        }
     }
 
     private val locationTimeout = Runnable {
         mutableState.value = mutableState.value.copy(locating = false, hasLiveFix = false)
+        Log.w(TAG, "event=location_timeout timeout_ms=$LOCATION_TIMEOUT_MILLIS")
     }
 
     private fun Location.toMapPosition(): MapPosition = MapPosition(
@@ -193,7 +226,12 @@ internal class MapLocationTracker(context: Context) {
         return position.takeIf(MapPositionPolicy::isValid)
     }
 
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
+    }
+
     private companion object {
+        const val TAG = "MiniIviLocation"
         const val PREFERENCES = "map_location"
         const val LATITUDE = "latitude"
         const val LONGITUDE = "longitude"

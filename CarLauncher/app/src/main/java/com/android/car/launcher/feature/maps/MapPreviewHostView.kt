@@ -77,7 +77,7 @@ internal class MapPreviewHostView @JvmOverloads constructor(
         }
 
         override fun onPreviewError(errorCode: Int, message: String?) {
-            Log.w(TAG, "Map preview error $errorCode: $message")
+            Log.w(TAG, "event=preview_failed error_code=$errorCode")
             post {
                 requestPending = false
                 setState(MapPreviewUiState.UNAVAILABLE)
@@ -87,21 +87,25 @@ internal class MapPreviewHostView @JvmOverloads constructor(
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+            Log.i(TAG, "event=service_connected component=${name.flattenToShortString()}")
             service = IMapPreviewService.Stub.asInterface(binder)
             requestPreviewIfReady()
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
+            Log.w(TAG, "event=service_disconnected component=${name.flattenToShortString()}")
             service = null
             resetPreview(MapPreviewUiState.UNAVAILABLE)
         }
 
         override fun onBindingDied(name: ComponentName) {
+            Log.w(TAG, "event=binding_died component=${name.flattenToShortString()}")
             disconnect()
             if (isAttachedToWindow) post(::connect)
         }
 
         override fun onNullBinding(name: ComponentName) {
+            Log.w(TAG, "event=null_binding component=${name.flattenToShortString()}")
             service = null
             setState(MapPreviewUiState.UNAVAILABLE)
         }
@@ -165,6 +169,7 @@ internal class MapPreviewHostView @JvmOverloads constructor(
             return
         }
         setState(MapPreviewUiState.CONNECTING)
+        logDebug("event=bind_requested service=map_preview")
         val intent = Intent().setComponent(
             ComponentName(
                 MapPreviewContract.MAPS_PACKAGE,
@@ -174,7 +179,7 @@ internal class MapPreviewHostView @JvmOverloads constructor(
         serviceBound = runCatching {
             context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         }.onFailure { error ->
-            Log.w(TAG, "Unable to bind the map preview service", error)
+            Log.w(TAG, "event=bind_failed service=map_preview", error)
         }.getOrDefault(false)
         if (!serviceBound) setState(MapPreviewUiState.UNAVAILABLE)
     }
@@ -183,12 +188,14 @@ internal class MapPreviewHostView @JvmOverloads constructor(
         val activeSession = sessionId
         if (activeSession != NO_SESSION) {
             runCatching { service?.releasePreview(activeSession) }
+            logDebug("event=session_release_requested session_id=$activeSession")
         }
         resetPreview(MapPreviewUiState.CONNECTING)
         service = null
         if (serviceBound) {
             runCatching { context.unbindService(connection) }
             serviceBound = false
+            logDebug("event=service_unbound service=map_preview")
         }
     }
 
@@ -207,8 +214,11 @@ internal class MapPreviewHostView @JvmOverloads constructor(
         }
         runCatching {
             previewService.createPreview(hostToken, displayId, width, height, callback)
+            logDebug(
+                "event=preview_requested display_id=$displayId width=$width height=$height",
+            )
         }.onFailure { error ->
-            Log.w(TAG, "Unable to request the map preview", error)
+            Log.w(TAG, "event=preview_request_failed", error)
             requestPending = false
             setState(MapPreviewUiState.UNAVAILABLE)
         }
@@ -232,6 +242,7 @@ internal class MapPreviewHostView @JvmOverloads constructor(
         sessionId = id
         requestPending = false
         surfaceView.setChildSurfacePackage(childSurface)
+        Log.i(TAG, "event=preview_ready session_id=$id")
     }
 
     private fun resetPreview(nextState: MapPreviewUiState) {
@@ -246,8 +257,17 @@ internal class MapPreviewHostView @JvmOverloads constructor(
 
     private fun setState(value: MapPreviewUiState) {
         if (state == value) return
+        val previous = state
         state = value
+        Log.i(
+            TAG,
+            "event=preview_state_changed from=${previous.name.lowercase()} to=${value.name.lowercase()}",
+        )
         onStateChanged(value)
+    }
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
     }
 
     private fun Int.toUiState(): MapPreviewUiState = when (this) {

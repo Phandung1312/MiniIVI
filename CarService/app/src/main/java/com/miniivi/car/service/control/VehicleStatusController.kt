@@ -58,15 +58,19 @@ class VehicleStatusController(
     private val tireMinimums = mutableMapOf<Int, Float>()
     private var batteryLevel: Float? = null
     private var batteryCapacity: Float? = null
+    private var propertyErrorReported = false
 
     fun start() {
         if (started) return
         started = true
+        Log.i(TAG, "event=controller_started feature=vehicle_status")
         startConnectionLoop()
     }
 
     fun stop() {
+        if (!started) return
         started = false
+        Log.i(TAG, "event=controller_stopping feature=vehicle_status")
         connectionJob?.cancel()
         connectionJob = null
         disconnectBlocking()
@@ -75,6 +79,7 @@ class VehicleStatusController(
             errorCode = CarServiceError.PLATFORM_UNAVAILABLE,
             diagnosticMessage = "Vehicle status controller stopped",
         )
+        Log.i(TAG, "event=controller_stopped feature=vehicle_status")
     }
 
     fun refresh() {
@@ -86,7 +91,11 @@ class VehicleStatusController(
                     ?: readFloatOrNull(INFO_EV_BATTERY_CAPACITY)
                 refreshState()
             }.onFailure { error ->
-                Log.e(TAG, "Unable to refresh vehicle status", error)
+                Log.e(
+                    TAG,
+                    "event=operation_failed feature=vehicle_status operation=refresh",
+                    error,
+                )
                 publishUnavailable(error.message)
             }
         }
@@ -96,6 +105,7 @@ class VehicleStatusController(
         connectionJob?.cancel()
         connectionJob = scope.launch {
             var retryDelay = INITIAL_RETRY_MILLIS
+            var lastLoggedRetryDelay = -1L
             while (isActive && started && propertyManager == null && carConnection.car == null) {
                 mutableState.value = mutableState.value.copy(
                     status = FeatureStatus.CONNECTING,
@@ -104,7 +114,14 @@ class VehicleStatusController(
                 )
                 val connected = runCatching { carConnection.connect() }
                     .onFailure { error ->
-                        Log.e(TAG, "Unable to connect to AAOS vehicle properties", error)
+                        if (retryDelay != lastLoggedRetryDelay) {
+                            Log.w(
+                                TAG,
+                                "event=connection_retry feature=vehicle_status delay_ms=$retryDelay",
+                                error,
+                            )
+                            lastLoggedRetryDelay = retryDelay
+                        }
                         disconnectBlocking()
                         publishUnavailable(error.message)
                     }
@@ -119,14 +136,26 @@ class VehicleStatusController(
     private fun onCarReady(lifecycleCar: Any) {
         if (!started || propertyManager != null) return
         runCatching { connectPropertyManager(lifecycleCar) }
+            .onSuccess {
+                Log.i(
+                    TAG,
+                    "event=backend_ready feature=vehicle_status backend=aaos " +
+                        "properties=${supportedProperties.size} tire_areas=${tireAreas.size}",
+                )
+            }
             .onFailure { error ->
-                Log.e(TAG, "Unable to initialize vehicle status properties", error)
+                Log.e(
+                    TAG,
+                    "event=backend_initialization_failed feature=vehicle_status backend=aaos",
+                    error,
+                )
                 clearPropertyManager()
                 publishUnavailable(error.message)
             }
     }
 
     private fun onCarUnavailable() {
+        Log.w(TAG, "event=backend_unavailable feature=vehicle_status backend=aaos")
         clearPropertyManager(unregisterCallback = false)
         publishUnavailable("AAOS car service is unavailable")
     }
@@ -162,7 +191,10 @@ class VehicleStatusController(
                 "onChangeEvent" -> args?.firstOrNull()?.let { value ->
                     scope.launch { handlePropertyValue(value) }
                 }
-                "onErrorEvent" -> Log.w(TAG, "A vehicle property reported an error")
+                "onErrorEvent" -> if (!propertyErrorReported) {
+                    propertyErrorReported = true
+                    Log.w(TAG, "event=property_error feature=vehicle_status")
+                }
                 "toString" -> "MiniIVI vehicle status callback"
                 "hashCode" -> System.identityHashCode(proxy)
                 "equals" -> proxy === args?.firstOrNull()
@@ -177,7 +209,14 @@ class VehicleStatusController(
         )
         supportedProperties.forEach { propertyId ->
             runCatching { register.invoke(manager, propertyCallback, propertyId, CALLBACK_RATE_HZ) }
-                .onFailure { error -> Log.w(TAG, "Unable to register property 0x${propertyId.toString(16)}", error) }
+                .onFailure { error ->
+                    Log.w(
+                        TAG,
+                        "event=property_registration_failed feature=vehicle_status " +
+                            "property=0x${propertyId.toString(16)}",
+                        error,
+                    )
+                }
         }
     }
 
@@ -186,6 +225,10 @@ class VehicleStatusController(
             val status = (value.javaClass.getMethod("getStatus").invoke(value) as? Int)
                 ?: STATUS_AVAILABLE
             if (status != STATUS_AVAILABLE) return
+            if (propertyErrorReported) {
+                propertyErrorReported = false
+                Log.i(TAG, "event=property_recovered feature=vehicle_status")
+            }
             val propertyId = value.javaClass.getMethod("getPropertyId").invoke(value) as Int
             val areaId = value.javaClass.getMethod("getAreaId").invoke(value) as Int
             val data = value.javaClass.getMethod("getValue").invoke(value)
@@ -195,7 +238,9 @@ class VehicleStatusController(
                 TIRE_PRESSURE -> tireValues[areaId] = (data as Number).toFloat()
             }
             refreshState()
-        }.onFailure { error -> Log.w(TAG, "Ignoring invalid vehicle property event", error) }
+        }.onFailure { error ->
+            Log.w(TAG, "event=property_event_ignored feature=vehicle_status reason=invalid", error)
+        }
     }
 
     private fun refreshState() {
@@ -262,6 +307,9 @@ class VehicleStatusController(
     }
 
     private fun publishUnavailable(message: String?) {
+        if (mutableState.value.status != FeatureStatus.UNAVAILABLE) {
+            Log.w(TAG, "event=feature_unavailable feature=vehicle_status")
+        }
         mutableState.value = VehicleStatusState(
             status = FeatureStatus.UNAVAILABLE,
             available = false,
@@ -284,7 +332,9 @@ class VehicleStatusController(
                     it.name == "unregisterCallback" && it.parameterTypes.size == 1
                 }
                 unregister?.invoke(manager, callback)
-            }.onFailure { Log.w(TAG, "Unable to unregister vehicle status callback", it) }
+            }.onFailure {
+                Log.w(TAG, "event=callback_unregister_failed feature=vehicle_status", it)
+            }
         }
         propertyCallback = null
         propertyManager = null
@@ -294,6 +344,7 @@ class VehicleStatusController(
         tireMinimums.clear()
         batteryLevel = null
         batteryCapacity = null
+        propertyErrorReported = false
     }
 
     private companion object {

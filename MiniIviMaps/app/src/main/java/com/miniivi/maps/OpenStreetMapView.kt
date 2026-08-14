@@ -9,6 +9,7 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.RectF
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.util.Log
 import android.util.LruCache
@@ -115,6 +116,9 @@ internal class OpenStreetMapView @JvmOverloads constructor(
     private var lastTouchY = 0f
     private var lastLoadingState: Boolean? = null
     private var failureReported = false
+    private var tileOutageActive = false
+    private var lastTileFailureLogUptime = 0L
+    private var suppressedTileFailures = 0
     private var scaleAccumulator = 1f
     private val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val placeholderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -343,7 +347,7 @@ internal class OpenStreetMapView @JvmOverloads constructor(
                 connection.disconnect()
             }
         }.onFailure {
-            Log.w(TAG, "Unable to load OSM tile $key", it)
+            reportTileFailure(it)
         }.getOrNull()
     }
 
@@ -355,12 +359,34 @@ internal class OpenStreetMapView @JvmOverloads constructor(
             lastLoadingState = loading
             onLoadingChanged?.invoke(loading)
         }
+        if (hasVisibleTile && tileOutageActive) {
+            tileOutageActive = false
+            Log.i(TAG, "event=tile_loading_recovered")
+        }
         val allFailed = visibleTiles.isNotEmpty() &&
             visibleTiles.all { it in failedTiles } &&
             !hasPendingTile
         if (allFailed && !failureReported) {
             failureReported = true
+            tileOutageActive = true
+            Log.w(TAG, "event=visible_tiles_unavailable visible_count=${visibleTiles.size}")
             onInitialLoadFailed?.invoke()
+        }
+    }
+
+    @Synchronized
+    private fun reportTileFailure(error: Throwable) {
+        val now = SystemClock.elapsedRealtime()
+        if (
+            lastTileFailureLogUptime == 0L ||
+            now - lastTileFailureLogUptime >= TILE_FAILURE_LOG_INTERVAL_MILLIS
+        ) {
+            val failureCount = suppressedTileFailures + 1
+            suppressedTileFailures = 0
+            lastTileFailureLogUptime = now
+            Log.w(TAG, "event=tile_load_failed failure_count=$failureCount", error)
+        } else {
+            suppressedTileFailures += 1
         }
     }
 
@@ -418,6 +444,7 @@ internal class OpenStreetMapView @JvmOverloads constructor(
         const val MEMORY_CACHE_BYTES = 24 * 1024 * 1024
         const val CONNECT_TIMEOUT_MILLIS = 8_000
         const val READ_TIMEOUT_MILLIS = 10_000
+        const val TILE_FAILURE_LOG_INTERVAL_MILLIS = 30_000L
         const val DEFAULT_ZOOM = 6
         const val LOCATION_ZOOM = 15
         const val DEFAULT_LATITUDE = 16.0

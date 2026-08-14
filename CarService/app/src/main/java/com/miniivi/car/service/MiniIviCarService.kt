@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.os.RemoteCallbackList
+import android.util.Log
 import com.miniivi.car.api.AudioState
 import com.miniivi.car.api.BluetoothFeatureState
 import com.miniivi.car.api.BrightnessState
@@ -81,38 +82,55 @@ class MiniIviCarService : Service() {
 
         override fun registerBrightnessListener(listener: IBrightnessStateListener) {
             enforceAccess()
-            if (brightnessListeners.register(listener)) {
-                runCatching { listener.onBrightnessStateChanged(brightnessController.state.value) }
+            val registered = brightnessListeners.register(listener)
+            logDebug("event=listener_registered feature=brightness accepted=$registered")
+            if (registered) {
+                deliverInitialState("brightness") {
+                    listener.onBrightnessStateChanged(brightnessController.state.value)
+                }
             }
         }
 
         override fun unregisterBrightnessListener(listener: IBrightnessStateListener) {
             enforceAccess()
-            brightnessListeners.unregister(listener)
+            logDebug(
+                "event=listener_unregistered feature=brightness removed=" +
+                    brightnessListeners.unregister(listener),
+            )
         }
 
         override fun registerAudioListener(listener: IAudioStateListener) {
             enforceAccess()
-            if (audioListeners.register(listener)) {
-                runCatching { listener.onAudioStateChanged(audioController.state.value) }
+            val registered = audioListeners.register(listener)
+            logDebug("event=listener_registered feature=audio accepted=$registered")
+            if (registered) {
+                deliverInitialState("audio") { listener.onAudioStateChanged(audioController.state.value) }
             }
         }
 
         override fun unregisterAudioListener(listener: IAudioStateListener) {
             enforceAccess()
-            audioListeners.unregister(listener)
+            logDebug(
+                "event=listener_unregistered feature=audio removed=" +
+                    audioListeners.unregister(listener),
+            )
         }
 
         override fun registerHvacListener(listener: IHvacStateListener) {
             enforceAccess()
-            if (hvacListeners.register(listener)) {
-                runCatching { listener.onHvacStateChanged(hvacController.state.value) }
+            val registered = hvacListeners.register(listener)
+            logDebug("event=listener_registered feature=hvac accepted=$registered")
+            if (registered) {
+                deliverInitialState("hvac") { listener.onHvacStateChanged(hvacController.state.value) }
             }
         }
 
         override fun unregisterHvacListener(listener: IHvacStateListener) {
             enforceAccess()
-            hvacListeners.unregister(listener)
+            logDebug(
+                "event=listener_unregistered feature=hvac removed=" +
+                    hvacListeners.unregister(listener),
+            )
         }
 
         override fun setBrightness(progress: Float) {
@@ -142,14 +160,21 @@ class MiniIviCarService : Service() {
 
         override fun registerVehicleStatusListener(listener: IVehicleStatusListener) {
             enforceAccess()
-            if (vehicleStatusListeners.register(listener)) {
-                runCatching { listener.onVehicleStatusChanged(vehicleStatusController.state.value) }
+            val registered = vehicleStatusListeners.register(listener)
+            logDebug("event=listener_registered feature=vehicle_status accepted=$registered")
+            if (registered) {
+                deliverInitialState("vehicle_status") {
+                    listener.onVehicleStatusChanged(vehicleStatusController.state.value)
+                }
             }
         }
 
         override fun unregisterVehicleStatusListener(listener: IVehicleStatusListener) {
             enforceAccess()
-            vehicleStatusListeners.unregister(listener)
+            logDebug(
+                "event=listener_unregistered feature=vehicle_status removed=" +
+                    vehicleStatusListeners.unregister(listener),
+            )
         }
 
         override fun getClimateControlState(): ClimateControlState {
@@ -159,14 +184,21 @@ class MiniIviCarService : Service() {
 
         override fun registerClimateControlStateListener(listener: IClimateControlStateListener) {
             enforceAccess()
-            if (climateControlListeners.register(listener)) {
-                runCatching { listener.onClimateControlStateChanged(hvacController.climateState.value) }
+            val registered = climateControlListeners.register(listener)
+            logDebug("event=listener_registered feature=climate_control accepted=$registered")
+            if (registered) {
+                deliverInitialState("climate_control") {
+                    listener.onClimateControlStateChanged(hvacController.climateState.value)
+                }
             }
         }
 
         override fun unregisterClimateControlStateListener(listener: IClimateControlStateListener) {
             enforceAccess()
-            climateControlListeners.unregister(listener)
+            logDebug(
+                "event=listener_unregistered feature=climate_control removed=" +
+                    climateControlListeners.unregister(listener),
+            )
         }
 
         override fun setClimatePowerEnabled(enabled: Boolean) =
@@ -232,14 +264,21 @@ class MiniIviCarService : Service() {
 
         override fun registerQuickControlsStateListener(listener: IQuickControlsStateListener) {
             enforceAccess()
-            if (quickControlsListeners.register(listener)) {
-                runCatching { listener.onQuickControlsStateChanged(quickControlsController.state.value) }
+            val registered = quickControlsListeners.register(listener)
+            logDebug("event=listener_registered feature=quick_controls accepted=$registered")
+            if (registered) {
+                deliverInitialState("quick_controls") {
+                    listener.onQuickControlsStateChanged(quickControlsController.state.value)
+                }
             }
         }
 
         override fun unregisterQuickControlsStateListener(listener: IQuickControlsStateListener) {
             enforceAccess()
-            quickControlsListeners.unregister(listener)
+            logDebug(
+                "event=listener_unregistered feature=quick_controls removed=" +
+                    quickControlsListeners.unregister(listener),
+            )
         }
 
         override fun setQuickControlEnabled(control: Int, enabled: Boolean) {
@@ -249,11 +288,13 @@ class MiniIviCarService : Service() {
 
         override fun requestScreenOff() {
             enforceAccess()
+            logDebug("event=command_received command=request_screen_off")
             quickControlsController.requestScreenOff()
         }
 
         override fun requestStateRefresh(featureMask: Int) {
             enforceAccess()
+            logDebug("event=refresh_requested feature_mask=0x${featureMask.toString(16)}")
             if (featureMask and CarFeature.BRIGHTNESS != 0) brightnessController.refresh()
             if (featureMask and CarFeature.AUDIO != 0) audioController.refresh()
             if (featureMask and CarFeature.HVAC != 0) hvacController.refresh()
@@ -271,8 +312,10 @@ class MiniIviCarService : Service() {
             listener: IBluetoothFeatureStateListener,
         ) {
             enforceAccess()
-            if (bluetoothListeners.register(listener)) {
-                runCatching {
+            val registered = bluetoothListeners.register(listener)
+            logDebug("event=listener_registered feature=bluetooth accepted=$registered")
+            if (registered) {
+                deliverInitialState("bluetooth") {
                     listener.onBluetoothFeatureStateChanged(bluetoothController.state.value)
                 }
             }
@@ -282,22 +325,28 @@ class MiniIviCarService : Service() {
             listener: IBluetoothFeatureStateListener,
         ) {
             enforceAccess()
-            bluetoothListeners.unregister(listener)
+            logDebug(
+                "event=listener_unregistered feature=bluetooth removed=" +
+                    bluetoothListeners.unregister(listener),
+            )
         }
 
         override fun requestBluetoothDiscovery(): Boolean {
             enforceAccess()
+            logDebug("event=command_received command=bluetooth_discovery")
             return bluetoothController.requestDiscovery()
         }
 
         override fun renameLocalBluetoothDevice(name: String): Boolean {
             enforceAccess()
+            logDebug("event=command_received command=bluetooth_rename name_length=${name.length}")
             return bluetoothController.renameLocalDevice(name)
         }
     }
 
     override fun onCreate() {
         super.onCreate()
+        Log.i(TAG, "event=service_created controllers=6")
         val currentUserProvider = CurrentUserProvider(applicationContext)
         brightnessController = BrightnessController(applicationContext, currentUserProvider, scope)
         audioController = AudioController(applicationContext, scope)
@@ -334,13 +383,23 @@ class MiniIviCarService : Service() {
         vehicleStatusController.start()
         bluetoothController.start()
         quickControlsController.start()
+        Log.i(TAG, "event=controllers_started count=6")
     }
 
-    override fun onBind(intent: Intent): IBinder = binder
+    override fun onBind(intent: Intent): IBinder {
+        Log.i(TAG, "event=service_bound action=${intent.action ?: "none"}")
+        return binder
+    }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        logDebug(
+            "event=start_command action=${intent?.action ?: "none"} flags=$flags start_id=$startId",
+        )
+        return START_STICKY
+    }
 
     override fun onDestroy() {
+        Log.i(TAG, "event=service_destroying")
         brightnessController.stop()
         audioController.stop()
         hvacController.stop()
@@ -358,6 +417,7 @@ class MiniIviCarService : Service() {
         dispatcher.close()
         executor.shutdownNow()
         super.onDestroy()
+        Log.i(TAG, "event=service_destroyed")
     }
 
     private fun enforceAccess() {
@@ -370,6 +430,16 @@ class MiniIviCarService : Service() {
     private fun enforceAndReturn(value: Boolean): Boolean {
         enforceAccess()
         return value
+    }
+
+    private inline fun deliverInitialState(feature: String, action: () -> Unit) {
+        runCatching(action).onFailure { error ->
+            Log.w(TAG, "event=initial_state_delivery_failed feature=$feature", error)
+        }
+    }
+
+    private fun logDebug(message: String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
     }
 
     private fun notifyBrightness(state: BrightnessState) {
@@ -410,5 +480,9 @@ class MiniIviCarService : Service() {
         } finally {
             callbacks.finishBroadcast()
         }
+    }
+
+    private companion object {
+        const val TAG = "MiniIviCarService"
     }
 }
