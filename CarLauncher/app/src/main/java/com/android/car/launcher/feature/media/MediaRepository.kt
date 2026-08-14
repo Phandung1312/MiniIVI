@@ -2,17 +2,26 @@ package com.android.car.launcher.feature.media
 
 import android.content.ContentUris
 import android.content.Context
+import android.database.ContentObserver
 import android.media.MediaPlayer
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 interface MediaController {
@@ -30,28 +39,57 @@ class MediaRepository @Inject constructor(
     private val _state = MutableStateFlow(MediaState())
     override val state = _state.asStateFlow()
 
-    private var mediaPlayer: MediaPlayer? = null
-
-    override suspend fun loadSongs() {
-        _state.update { it.copy(isLoading = true, errorMessage = null) }
-        val result = runCatching {
-            withContext(Dispatchers.IO) { querySongs() }
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val loadMutex = Mutex()
+    private val refreshCoordinator = MediaRefreshCoordinator(
+        scope = repositoryScope,
+        debounceMillis = MEDIA_CHANGE_DEBOUNCE_MILLIS,
+        refresh = ::loadSongs,
+    )
+    private val mediaObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            refreshCoordinator.requestRefresh()
         }
 
-        result.onSuccess { tracks ->
-            releasePlayer()
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+            refreshCoordinator.requestRefresh()
+        }
+    }
+
+    private var mediaPlayer: MediaPlayer? = null
+
+    init {
+        context.contentResolver.registerContentObserver(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            true,
+            mediaObserver,
+        )
+    }
+
+    override suspend fun loadSongs(): Unit = loadMutex.withLock {
+        _state.update { it.copy(isLoading = true, errorMessage = null) }
+        try {
+            val tracks = withContext(Dispatchers.IO) { querySongs() }
+            val previousTrackId = _state.value.currentTrack?.id
+            val updatedIndex = tracks.indexOfFirst { it.id == previousTrackId }
+            val keepsCurrentTrack = previousTrackId != null && updatedIndex >= 0
+            if (!keepsCurrentTrack) {
+                releasePlayer(updateState = false)
+            }
             _state.update {
                 it.copy(
                     tracks = tracks,
-                    selectedIndex = 0,
+                    selectedIndex = if (keepsCurrentTrack) updatedIndex else 0,
                     isLoading = false,
-                    isPreparing = false,
-                    isPlaying = false,
+                    isPreparing = if (keepsCurrentTrack) it.isPreparing else false,
+                    isPlaying = if (keepsCurrentTrack) it.isPlaying else false,
                     errorMessage = null,
                 )
             }
             Log.d(TAG, "Loaded ${tracks.size} audio files from MediaStore")
-        }.onFailure { error ->
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
             Log.e(TAG, "Unable to load audio from MediaStore", error)
             _state.update {
                 it.copy(
@@ -194,5 +232,6 @@ class MediaRepository @Inject constructor(
 
     private companion object {
         const val TAG = "MediaRepository"
+        const val MEDIA_CHANGE_DEBOUNCE_MILLIS = 300L
     }
 }
