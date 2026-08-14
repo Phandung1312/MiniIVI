@@ -18,4 +18,4 @@ Keep the emulator open. In a second terminal, run from the release root:
 deploy_prebuilt.bat
 ```
 
-The script validates `demo/`, pushes every system artifact and both sample songs, reboots Android, and verifies the deployed packages. Never use `adb install`.
+The script validates `demo/`, migrates a legacy Map installation when needed, pushes every system artifact and both sample songs, reboots Android, and verifies the deployed packages. Never use `adb install`.

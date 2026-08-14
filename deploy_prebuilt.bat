@@ -65,17 +65,20 @@ echo Enabling root and writable system partitions...
     /system_ext/etc/permissions ^
     /system_ext/etc/default-permissions ^
     /system/priv-app ^
-    /system/app/MiniIviMaps ^
+    /system/priv-app/MiniIviMaps ^
     /system/etc/permissions ^
     /system/etc/default-permissions ^
     /product/media ^
     /product/overlay || goto :fail
 
+echo Migrating a legacy Maps installation when present...
+"%ADB%" %ADB_SERIAL% shell "if [ -d /system/app/MiniIviMaps ]; then pm uninstall --user 0 com.miniivi.maps >/dev/null 2>&1 || true; pm uninstall --user 10 com.miniivi.maps >/dev/null 2>&1 || true; fi" || goto :fail
+
 echo Pushing APKs...
 call :push MiniIVICarService.apk /system_ext/priv-app/MiniIVICarService/MiniIVICarService.apk || goto :fail
 call :push CarSystemUI.apk /system_ext/priv-app/CarSystemUI/CarSystemUI.apk || goto :fail
 call :push CarLauncher.apk /system/priv-app/CarLauncher.apk || goto :fail
-call :push MiniIviMaps.apk /system/app/MiniIviMaps/MiniIviMaps.apk || goto :fail
+call :push MiniIviMaps.apk /system/priv-app/MiniIviMaps/MiniIviMaps.apk || goto :fail
 call :push MiniIviBootProgressOverlay.apk /product/overlay/MiniIviBootProgressOverlay.apk || goto :fail
 
 echo Pushing permission files...
@@ -108,11 +111,14 @@ call :push_media example-track-02.mp3 || goto :fail
     /data/media/%MEDIA_USER%/Music/example-track-02.mp3 || goto :fail
 
 "%ADB%" %ADB_SERIAL% shell "if [ -f /system_ext/priv-app/CarSystemUI/CarSystemUI.apk ] && [ -e /system_ext/priv-app/CarSystemUI.apk ]; then rm -f /system_ext/priv-app/CarSystemUI.apk; fi" || goto :fail
+"%ADB%" %ADB_SERIAL% shell "rm -rf /system/app/MiniIviMaps" || goto :fail
 "%ADB%" %ADB_SERIAL% shell sync || goto :fail
 echo Rebooting Android so system policies and sample media are loaded...
 "%ADB%" %ADB_SERIAL% reboot || goto :fail
 "%ADB%" %ADB_SERIAL% wait-for-device || goto :fail
 call :wait_boot || goto :fail
+"%ADB%" %ADB_SERIAL% shell pm install-existing --user 0 com.miniivi.maps || goto :fail
+"%ADB%" %ADB_SERIAL% shell pm install-existing --user 10 com.miniivi.maps || goto :fail
 
 echo Verifying deployed packages...
 "%ADB%" %ADB_SERIAL% shell pm path com.miniivi.car.service || goto :fail

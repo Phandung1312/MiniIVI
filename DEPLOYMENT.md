@@ -194,7 +194,7 @@ adb shell "ls -l \
   /system_ext/priv-app/MiniIVICarService/MiniIVICarService.apk \
   /system_ext/priv-app/CarSystemUI/CarSystemUI.apk \
   /system/priv-app/CarLauncher.apk \
-  /system/app/MiniIviMaps/MiniIviMaps.apk \
+  /system/priv-app/MiniIviMaps/MiniIviMaps.apk \
   /product/overlay/MiniIviBootProgressOverlay.apk \
   /product/media/bootanimation.zip \
   /product/media/bootanimation-dark.zip"
