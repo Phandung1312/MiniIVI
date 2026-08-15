@@ -4,6 +4,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.TetheringManager
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -40,6 +43,7 @@ class QuickControlsController(
     private val preferences = applicationContext.createDeviceProtectedStorageContext()
         .getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
     private val wifiManager = applicationContext.getSystemService(WifiManager::class.java)
+    private val connectivityManager = applicationContext.getSystemService(ConnectivityManager::class.java)
     private val tetheringManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         applicationContext.getSystemService(TetheringManager::class.java)
     } else {
@@ -50,6 +54,17 @@ class QuickControlsController(
         it.name == "goToSleep" && it.parameterTypes.contentEquals(arrayOf(Long::class.javaPrimitiveType))
     }
     private var receiverRegistered = false
+    private var networkCallbackRegistered = false
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = refreshWifiConnection()
+
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+            updateWifiConnection(capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI))
+        }
+
+        override fun onLost(network: Network) = refreshWifiConnection()
+    }
 
     private val mutableState = MutableStateFlow(restoredState())
     val state: StateFlow<QuickControlsState> = mutableState.asStateFlow()
@@ -66,6 +81,7 @@ class QuickControlsController(
                 mutableState.update {
                     it.copy(
                         bluetoothEnabled = bluetooth.enabled,
+                        bluetoothConnected = bluetooth.enabled && bluetooth.connectedDevices.isNotEmpty(),
                         realCapabilities = realCapabilities(),
                     )
                 }
@@ -88,6 +104,12 @@ class QuickControlsController(
             }
             receiverRegistered = true
         }
+        if (!networkCallbackRegistered) {
+            runCatching {
+                connectivityManager?.registerDefaultNetworkCallback(networkCallback)
+                networkCallbackRegistered = connectivityManager != null
+            }
+        }
         refresh()
     }
 
@@ -96,6 +118,10 @@ class QuickControlsController(
         Log.i(TAG, "event=controller_stopping feature=quick_controls")
         if (receiverRegistered) runCatching { applicationContext.unregisterReceiver(receiver) }
         receiverRegistered = false
+        if (networkCallbackRegistered) {
+            runCatching { connectivityManager?.unregisterNetworkCallback(networkCallback) }
+            networkCallbackRegistered = false
+        }
         Log.i(TAG, "event=controller_stopped feature=quick_controls")
     }
 
@@ -110,7 +136,12 @@ class QuickControlsController(
                 wifiEnabled = if (capabilities and QuickControl.WIFI_CAPABILITY != 0L) {
                     runCatching { wifiManager?.isWifiEnabled == true }.getOrDefault(current.wifiEnabled)
                 } else current.wifiEnabled,
+                wifiConnected = if (capabilities and QuickControl.WIFI_CAPABILITY != 0L) {
+                    isWifiConnected()
+                } else false,
                 bluetoothEnabled = bluetoothController.state.value.enabled,
+                bluetoothConnected = bluetoothController.state.value.enabled &&
+                    bluetoothController.state.value.connectedDevices.isNotEmpty(),
                 realCapabilities = capabilities,
                 errorCode = CarServiceError.NONE,
                 diagnosticMessage = null,
@@ -229,8 +260,14 @@ class QuickControlsController(
         if (persist) preferences.edit().putBoolean(key(control), enabled).apply()
         mutableState.update {
             when (control) {
-                QuickControl.WIFI -> it.copy(wifiEnabled = enabled)
-                QuickControl.BLUETOOTH -> it.copy(bluetoothEnabled = enabled)
+                QuickControl.WIFI -> it.copy(
+                    wifiEnabled = enabled,
+                    wifiConnected = enabled && isWifiConnected(),
+                )
+                QuickControl.BLUETOOTH -> it.copy(
+                    bluetoothEnabled = enabled,
+                    bluetoothConnected = enabled && bluetoothController.state.value.connectedDevices.isNotEmpty(),
+                )
                 QuickControl.HOTSPOT -> it.copy(hotspotEnabled = enabled)
                 QuickControl.VALET_MODE -> it.copy(valetModeEnabled = enabled)
                 else -> it
@@ -247,7 +284,10 @@ class QuickControlsController(
         status = FeatureStatus.READY,
         available = true,
         wifiEnabled = preferences.getBoolean(key(QuickControl.WIFI), false),
+        wifiConnected = false,
         bluetoothEnabled = bluetoothController.state.value.enabled,
+        bluetoothConnected = bluetoothController.state.value.enabled &&
+            bluetoothController.state.value.connectedDevices.isNotEmpty(),
         hotspotEnabled = preferences.getBoolean(key(QuickControl.HOTSPOT), false),
         valetModeEnabled = preferences.getBoolean(key(QuickControl.VALET_MODE), false),
         realCapabilities = realCapabilities(),
@@ -260,6 +300,22 @@ class QuickControlsController(
         if (tetheringManager != null) result = result or QuickControl.HOTSPOT_CAPABILITY
         if (goToSleepMethod != null) result = result or QuickControl.SCREEN_OFF_CAPABILITY
         return result
+    }
+
+    private fun isWifiConnected(): Boolean {
+        val manager = connectivityManager ?: return false
+        val network = manager.activeNetwork ?: return false
+        val capabilities = manager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    private fun refreshWifiConnection() = updateWifiConnection(isWifiConnected())
+
+    private fun updateWifiConnection(connected: Boolean) {
+        mutableState.update { current ->
+            current.copy(wifiConnected = current.wifiEnabled && connected)
+        }
     }
 
     private fun publishArgumentError(message: String) {

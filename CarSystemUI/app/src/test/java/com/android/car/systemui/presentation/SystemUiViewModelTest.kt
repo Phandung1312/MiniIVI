@@ -47,16 +47,23 @@ class SystemUiViewModelTest {
     fun navigationActionsAreDelegated() {
         val repository = FakeNavigationRepository()
         val viewModel = SystemUiViewModel(repository)
+        assertEquals(NavigationDestination.HOME, viewModel.state.value.selectedDestination)
         viewModel.toggleControlCenter()
         viewModel.goHome()
         assertFalse(viewModel.state.value.controlCenterVisible)
+        assertEquals(NavigationDestination.HOME, viewModel.state.value.selectedDestination)
         viewModel.toggleControlCenter()
         viewModel.openSettings()
         assertFalse(viewModel.state.value.controlCenterVisible)
+        assertEquals(NavigationDestination.OTHER, viewModel.state.value.selectedDestination)
         viewModel.toggleControlCenter()
         viewModel.openAppList()
         assertFalse(viewModel.state.value.controlCenterVisible)
-        assertEquals(listOf("home", "settings", "apps"), repository.actions)
+        assertEquals(NavigationDestination.APP_LIST, viewModel.state.value.selectedDestination)
+        viewModel.openPhone()
+        assertFalse(viewModel.state.value.controlCenterVisible)
+        assertEquals(NavigationDestination.OTHER, viewModel.state.value.selectedDestination)
+        assertEquals(listOf("home", "settings", "apps", "phone"), repository.actions)
     }
 
     @Test
@@ -133,6 +140,7 @@ private class FakeNavigationRepository : NavigationRepository {
     override fun goHome() { actions += "home" }
     override fun openSettings() { actions += "settings" }
     override fun openAppList() { actions += "apps" }
+    override fun openPhone() { actions += "phone" }
     override fun openWifiSettings() { actions += "wifi" }
     override fun openWirelessSettings() { actions += "wireless" }
     override fun openBluetoothSettings() { actions += "bluetooth" }

@@ -106,6 +106,7 @@ class AudioController(
                         Int::class.javaPrimitiveType,
                         Int::class.javaPrimitiveType,
                     ).invoke(manager, groupId, clamped, 0)
+                    Log.d(TAG, "event=volume_set feature=audio backend=car_audio volume=$clamped")
                 } else {
                     checkNotNull(audioManager) { "Audio service is unavailable" }
                         .setStreamVolume(AudioManager.STREAM_MUSIC, clamped, 0)

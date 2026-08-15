@@ -1,6 +1,7 @@
 package com.android.car.systemui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -23,7 +24,11 @@ import com.android.car.systemui.presentation.CarSystemUiTheme
 import com.android.car.systemui.presentation.NavigationRailScreen
 import com.android.car.systemui.presentation.ControlCenterOverlay
 import com.android.car.systemui.presentation.ControlCenterUiState
+import com.android.car.systemui.presentation.NavigationDestination
+import com.miniivi.car.api.QuickControl
+import com.miniivi.car.api.QuickControlsState
 import kotlin.math.abs
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -115,6 +120,54 @@ class SystemUiComposeTest {
     }
 
     @Test
+    fun navigationRailShowsSelectedDestinationAndStatusPanel() {
+        composeRule.setContent {
+            CarSystemUiTheme {
+                NavigationRailScreen(
+                    controlCenterVisible = false,
+                    selectedDestination = NavigationDestination.APP_LIST,
+                    quickControls = QuickControlsState(
+                        available = true,
+                        wifiEnabled = true,
+                        wifiConnected = true,
+                        bluetoothEnabled = false,
+                        realCapabilities = QuickControl.WIFI_CAPABILITY or
+                            QuickControl.BLUETOOTH_CAPABILITY,
+                    ),
+                    audio = AudioState(volume = 0, maximum = 10, available = true),
+                    onHome = {},
+                    onAppList = {},
+                    onPhone = {},
+                    onControlCenter = {},
+                    onSettings = {},
+                    modifier = Modifier.size(135.2.dp, 720.dp),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("navigation_home").assertIsDisplayed()
+        composeRule.onNodeWithTag("navigation_apps").assertIsDisplayed()
+        composeRule.onNodeWithTag("navigation_call").assertIsDisplayed()
+        composeRule.onNodeWithTag("navigation_vehicle_controls").assertIsDisplayed()
+        composeRule.onNodeWithTag("navigation_status_panel").assertIsDisplayed()
+        val statusBounds = composeRule.onNodeWithTag("navigation_status_panel")
+            .fetchSemanticsNode().boundsInRoot
+        val callBounds = composeRule.onNodeWithTag("navigation_call")
+            .fetchSemanticsNode().boundsInRoot
+        assertEquals(callBounds.width, statusBounds.width, 0.01f)
+        assertTrue(callBounds.top >= statusBounds.bottom)
+        composeRule.onNodeWithContentDescription("Wi-Fi Connected")
+            .assertIsDisplayed()
+            .assertHasNoClickAction()
+        composeRule.onNodeWithContentDescription("Bluetooth Disabled")
+            .assertIsDisplayed()
+            .assertHasNoClickAction()
+        composeRule.onNodeWithContentDescription("Audio muted")
+            .assertIsDisplayed()
+            .assertHasNoClickAction()
+    }
+
+    @Test
     fun moreClimateAndMockCameraFlowsAreRenderedInTheOverlayWindow() {
         var showMore by mutableStateOf(false)
         var showCamera by mutableStateOf(false)
@@ -138,7 +191,7 @@ class SystemUiComposeTest {
                     onAcChanged = {},
                     onSettings = {},
                     onShowMoreClimate = { showMore = true },
-                    onShowCamera = { showCamera = true },
+                    onOpenCamera = { showCamera = true },
                     modifier = Modifier.size(1920.dp, 1080.dp),
                 )
             }

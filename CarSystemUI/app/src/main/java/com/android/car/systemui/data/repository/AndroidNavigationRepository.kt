@@ -52,6 +52,11 @@ class AndroidNavigationRepository(
         )
     }
 
+    override fun openPhone() {
+        logDebug("event=navigation_requested destination=phone")
+        launch(Intent(Intent.ACTION_DIAL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     override fun openWifiSettings() {
         logDebug("event=navigation_requested destination=wifi_settings")
         launch(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

@@ -57,6 +57,46 @@ internal object MiniIviNavigationIcons {
         }.build()
     }
 
+    /** A minimal front-view vehicle mark for climate and vehicle controls. */
+    val VehicleFront: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "MiniIviVehicleFront",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(
+                fill = null,
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 1.7f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(4.2f, 17.5f)
+                lineTo(5.3f, 10.3f)
+                quadTo(5.6f, 8.1f, 8.3f, 7.1f)
+                quadTo(12f, 5.8f, 15.7f, 7.1f)
+                quadTo(18.4f, 8.1f, 18.7f, 10.3f)
+                lineTo(19.8f, 17.5f)
+                moveTo(5.2f, 12.3f)
+                horizontalLineTo(18.8f)
+                moveTo(7.1f, 9.1f)
+                quadTo(8.3f, 8.1f, 9.8f, 7.8f)
+                horizontalLineTo(14.2f)
+                quadTo(15.7f, 8.1f, 16.9f, 9.1f)
+                moveTo(6.7f, 14.5f)
+                horizontalLineTo(8.3f)
+                moveTo(15.7f, 14.5f)
+                horizontalLineTo(17.3f)
+                moveTo(6.3f, 17.5f)
+                verticalLineTo(18.8f)
+                moveTo(17.7f, 17.5f)
+                verticalLineTo(18.8f)
+            }
+        }.build()
+    }
+
     val ControlCenter: ImageVector by lazy {
         ImageVector.Builder(
             name = "MiniIviControlCenterQ06",

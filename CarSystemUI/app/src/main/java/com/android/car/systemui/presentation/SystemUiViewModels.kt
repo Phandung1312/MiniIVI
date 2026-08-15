@@ -26,7 +26,16 @@ import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class SystemUiState(val controlCenterVisible: Boolean = false)
+enum class NavigationDestination {
+    HOME,
+    APP_LIST,
+    OTHER,
+}
+
+data class SystemUiState(
+    val controlCenterVisible: Boolean = false,
+    val selectedDestination: NavigationDestination = NavigationDestination.HOME,
+)
 
 data class ControlCenterUiState(
     val brightness: BrightnessState = BrightnessState(),
@@ -59,17 +68,34 @@ class SystemUiViewModel(
 
     fun goHome() {
         dismissControlCenter()
+        mutableState.value = mutableState.value.copy(
+            selectedDestination = NavigationDestination.HOME,
+        )
         navigationRepository.goHome()
     }
 
     fun openSettings() {
         dismissControlCenter()
+        mutableState.value = mutableState.value.copy(
+            selectedDestination = NavigationDestination.OTHER,
+        )
         navigationRepository.openSettings()
     }
 
     fun openAppList() {
         dismissControlCenter()
+        mutableState.value = mutableState.value.copy(
+            selectedDestination = NavigationDestination.APP_LIST,
+        )
         navigationRepository.openAppList()
+    }
+
+    fun openPhone() {
+        dismissControlCenter()
+        mutableState.value = mutableState.value.copy(
+            selectedDestination = NavigationDestination.OTHER,
+        )
+        navigationRepository.openPhone()
     }
 
 }

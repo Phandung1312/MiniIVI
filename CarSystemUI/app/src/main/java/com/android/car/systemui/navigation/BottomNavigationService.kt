@@ -87,11 +87,17 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
             setContent {
                 CarSystemUiTheme {
                     val systemState by systemUiViewModel.state.collectAsStateWithLifecycle()
+                    val controlState by controlCenterViewModel.state.collectAsStateWithLifecycle()
+                    val quickControls = controlState.extendedControls.quickControls
                     val navigationWidth = dimensionResource(R.dimen.navigation_rail_width)
                     NavigationRailScreen(
                         controlCenterVisible = systemState.controlCenterVisible,
+                        selectedDestination = systemState.selectedDestination,
+                        quickControls = quickControls,
+                        audio = controlState.audio,
                         onHome = systemUiViewModel::goHome,
                         onAppList = systemUiViewModel::openAppList,
+                        onPhone = systemUiViewModel::openPhone,
                         onControlCenter = {
                             if (!systemState.controlCenterVisible) controlCenterViewModel.refresh()
                             systemUiViewModel.toggleControlCenter()
