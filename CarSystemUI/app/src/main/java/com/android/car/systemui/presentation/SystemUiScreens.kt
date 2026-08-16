@@ -35,8 +35,6 @@ import androidx.compose.material.icons.rounded.BrightnessHigh
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Wifi
@@ -62,9 +60,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -126,17 +126,19 @@ fun NavigationRailScreen(
             ) {
                 NavigationBrandMark(buttonSize)
                 NavigationButton(
-                    Icons.Rounded.Home,
-                    R.string.navigation_home,
-                    buttonSize,
+                    icon = null,
+                    iconPainter = painterResource(R.drawable.ic_navigation_home),
+                    description = R.string.navigation_home,
+                    size = buttonSize,
                     selected = selectedDestination == NavigationDestination.HOME,
                     tag = "navigation_home",
                     onClick = onHome,
                 )
                 NavigationButton(
-                    MiniIviNavigationIcons.Apps,
-                    R.string.navigation_app_list,
-                    buttonSize,
+                    icon = null,
+                    iconPainter = painterResource(R.drawable.ic_navigation_apps),
+                    description = R.string.navigation_app_list,
+                    size = buttonSize,
                     selected = selectedDestination == NavigationDestination.APP_LIST,
                     tag = "navigation_apps",
                     onClick = onAppList,
@@ -148,25 +150,28 @@ fun NavigationRailScreen(
                     modifier = Modifier.width(buttonSize).weight(1f),
                 )
                 NavigationButton(
-                    Icons.Rounded.Phone,
-                    R.string.navigation_call,
-                    buttonSize,
+                    icon = null,
+                    iconPainter = painterResource(R.drawable.ic_navigation_phone),
+                    description = R.string.navigation_call,
+                    size = buttonSize,
                     selected = selectedDestination == NavigationDestination.PHONE,
                     tag = "navigation_call",
                     onClick = onPhone,
                 )
                 NavigationButton(
-                    MiniIviNavigationIcons.VehicleFront,
-                    R.string.navigation_control_center,
-                    buttonSize,
+                    icon = null,
+                    iconPainter = painterResource(R.drawable.ic_vehicle_front_simplified),
+                    description = R.string.navigation_control_center,
+                    size = buttonSize,
                     selected = selectedDestination == NavigationDestination.CONTROL_CENTER,
                     tag = "navigation_vehicle_controls",
                     onClick = onControlCenter,
                 )
                 NavigationButton(
-                    Icons.Rounded.Settings,
-                    R.string.navigation_settings,
-                    buttonSize,
+                    icon = null,
+                    iconPainter = painterResource(R.drawable.ic_navigation_settings),
+                    description = R.string.navigation_settings,
+                    size = buttonSize,
                     selected = selectedDestination == NavigationDestination.SETTINGS,
                     tag = "navigation_settings",
                     onClick = onSettings,
@@ -203,12 +208,13 @@ private fun NavigationBrandMark(size: Dp) {
 
 @Composable
 private fun NavigationButton(
-    icon: ImageVector,
+    icon: ImageVector?,
     description: Int,
     size: Dp,
     selected: Boolean = false,
     tag: String,
     onClick: () -> Unit,
+    iconPainter: Painter? = null,
 ) {
     val shape = RoundedCornerShape(22.dp)
     val background = if (selected) MaterialTheme.colorScheme.primary
@@ -223,13 +229,23 @@ private fun NavigationButton(
         onClick = onClick,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = stringResource(description),
-                tint = if (selected) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(size * 0.48f),
-            )
+            val tint = if (selected) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurface
+            val iconModifier = Modifier.size(size * 0.48f)
+            when {
+                iconPainter != null -> Icon(
+                    painter = iconPainter,
+                    contentDescription = stringResource(description),
+                    tint = tint,
+                    modifier = iconModifier,
+                )
+                icon != null -> Icon(
+                    imageVector = icon,
+                    contentDescription = stringResource(description),
+                    tint = tint,
+                    modifier = iconModifier,
+                )
+            }
         }
     }
 }
