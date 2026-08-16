@@ -8,8 +8,11 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class AndroidNavigationRepository(
+@Singleton
+class AndroidNavigationRepository @Inject constructor(
     private val currentUserProvider: CurrentUserProvider,
 ) : NavigationRepository {
     override fun goHome() {

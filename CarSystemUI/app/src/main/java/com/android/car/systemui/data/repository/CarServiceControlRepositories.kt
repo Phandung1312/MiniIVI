@@ -10,7 +10,9 @@ import com.miniivi.car.api.FeatureStatus
 import com.miniivi.car.api.HvacZone
 import com.miniivi.car.api.HvacZoneState
 import com.miniivi.car.client.MiniIviCarClient
+import com.android.car.systemui.di.ApplicationScope
 import kotlin.math.roundToInt
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,8 +27,9 @@ internal object AudioLevelMapper {
             .coerceIn(minimum, maximum)
 }
 
-class CarServiceExtendedControlsRepository(
+class CarServiceExtendedControlsRepository @Inject constructor(
     private val client: MiniIviCarClient,
+    @ApplicationScope
     scope: CoroutineScope,
 ) : ExtendedControlsRepository {
     override val state: StateFlow<ExtendedControlsState> = combine(
@@ -77,8 +80,9 @@ internal object HvacTemperaturePolicy {
         ((zone.temperature ?: return zone.minimum) + delta).coerceIn(zone.minimum, zone.maximum)
 }
 
-class CarServiceBrightnessRepository(
+class CarServiceBrightnessRepository @Inject constructor(
     private val client: MiniIviCarClient,
+    @ApplicationScope
     scope: CoroutineScope,
 ) : BrightnessRepository {
     override val state: StateFlow<BrightnessState> = client.brightnessState
@@ -101,8 +105,9 @@ class CarServiceBrightnessRepository(
     }
 }
 
-class CarServiceAudioRepository(
+class CarServiceAudioRepository @Inject constructor(
     private val client: MiniIviCarClient,
+    @ApplicationScope
     scope: CoroutineScope,
 ) : AudioRepository {
     override val state: StateFlow<AudioState> = client.audioState
@@ -125,8 +130,9 @@ class CarServiceAudioRepository(
     }
 }
 
-class CarServiceHvacRepository(
+class CarServiceHvacRepository @Inject constructor(
     private val client: MiniIviCarClient,
+    @ApplicationScope
     scope: CoroutineScope,
 ) : HvacRepository {
     override val state: StateFlow<HvacState> = client.hvacState

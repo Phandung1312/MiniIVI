@@ -5,8 +5,14 @@ import android.content.Intent
 import android.os.UserHandle
 import android.util.Log
 import com.android.car.systemui.framework.FrameworkPlatformApi
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class CurrentUserProvider(private val applicationContext: Context) {
+@Singleton
+class CurrentUserProvider @Inject constructor(
+    @ApplicationContext private val applicationContext: Context,
+) {
     @Volatile
     private var lastKnownUserId: Int? = null
     @Volatile

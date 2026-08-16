@@ -1,20 +1,22 @@
 package com.android.car.systemui.presentation
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
 import com.android.car.systemui.data.model.AudioState
 import com.android.car.systemui.data.model.BrightnessState
 import com.android.car.systemui.data.model.ClimateZone
-import com.android.car.systemui.data.model.HvacState
 import com.android.car.systemui.data.model.ExtendedControlsState
-import com.android.car.systemui.data.repository.AudioRepository
+import com.android.car.systemui.data.model.HvacState
 import com.android.car.systemui.data.repository.AudioLevelMapper
+import com.android.car.systemui.data.repository.AudioRepository
 import com.android.car.systemui.data.repository.BrightnessRepository
-import com.android.car.systemui.data.repository.HvacRepository
 import com.android.car.systemui.data.repository.ExtendedControlsRepository
-import com.miniivi.car.api.ClimateWindow
+import com.android.car.systemui.data.repository.HvacRepository
 import com.android.car.systemui.data.repository.NavigationRepository
+import com.android.car.systemui.di.ApplicationScope
+import com.miniivi.car.api.ClimateWindow
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,9 +56,10 @@ data class ControlCenterUiState(
         get() = brightnessPreview ?: brightness.progress
 }
 
-class SystemUiViewModel(
+@Singleton
+class SystemUiStateController @Inject constructor(
     private val navigationRepository: NavigationRepository,
-) : ViewModel() {
+) {
     private val mutableState = MutableStateFlow(SystemUiState())
     private var destinationBeforeControlCenter = NavigationDestination.HOME
     val state = mutableState.asStateFlow()
@@ -130,13 +133,15 @@ class SystemUiViewModel(
 }
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)
-class ControlCenterViewModel(
+@Singleton
+class ControlCenterStateController @Inject constructor(
     private val navigationRepository: NavigationRepository,
     private val brightnessRepository: BrightnessRepository,
     private val audioRepository: AudioRepository,
     private val hvacRepository: HvacRepository,
     private val extendedControlsRepository: ExtendedControlsRepository,
-) : ViewModel() {
+    @ApplicationScope private val applicationScope: CoroutineScope,
+) {
     private val brightnessPreview = MutableStateFlow<Float?>(null)
     private val brightnessChanges = MutableSharedFlow<Float>(
         extraBufferCapacity = 1,
@@ -145,6 +150,8 @@ class ControlCenterViewModel(
     private val moreClimateVisible = MutableStateFlow(false)
     private val cameraVisible = MutableStateFlow(false)
     private val screenCurtainVisible = MutableStateFlow(false)
+    private var brightnessJob: Job? = null
+    private var started = false
 
     val state: StateFlow<ControlCenterUiState> = combine(
         brightnessRepository.state,
@@ -162,21 +169,33 @@ class ControlCenterViewModel(
     }.combine(screenCurtainVisible) { base, visible ->
         base.copy(screenCurtainVisible = visible)
     }.stateIn(
-        viewModelScope,
+        applicationScope,
         SharingStarted.Eagerly,
         ControlCenterUiState(),
     )
 
-    init {
+    fun start() {
+        if (started) return
+        started = true
         brightnessRepository.start()
         audioRepository.start()
         hvacRepository.start()
         extendedControlsRepository.start()
-        viewModelScope.launch {
+        brightnessJob = applicationScope.launch {
             brightnessChanges.sample(BRIGHTNESS_WRITE_INTERVAL_MS).collect { progress ->
                 brightnessRepository.setBrightness(progress)
             }
         }
+    }
+
+    fun stop() {
+        if (!started) return
+        started = false
+        brightnessJob?.cancel()
+        brightnessJob = null
+        brightnessRepository.stop()
+        audioRepository.stop()
+        hvacRepository.stop()
     }
 
     fun refresh() {
@@ -194,7 +213,7 @@ class ControlCenterViewModel(
 
     fun onBrightnessChangeFinished() {
         val finalValue = brightnessPreview.value ?: return
-        viewModelScope.launch {
+        applicationScope.launch {
             brightnessRepository.setBrightness(finalValue)
             brightnessPreview.value = null
         }
@@ -204,9 +223,7 @@ class ControlCenterViewModel(
         val audio = audioRepository.state.value
         if (!audio.available) return
         val volume = AudioLevelMapper.toVolume(progress, audio.minimum, audio.maximum)
-        if (volume != audio.volume) {
-            audioRepository.setVolume(volume)
-        }
+        if (volume != audio.volume) audioRepository.setVolume(volume)
     }
 
     fun onVolumeChangeFinished() = Unit
@@ -249,9 +266,7 @@ class ControlCenterViewModel(
     fun openWifiSettings() = navigationRepository.openWifiSettings()
     fun openWirelessSettings() = navigationRepository.openWirelessSettings()
     fun openBluetoothSettings() = navigationRepository.openBluetoothSettings()
-    fun openCamera() {
-        cameraVisible.value = !navigationRepository.openCamera()
-    }
+    fun openCamera() { cameraVisible.value = !navigationRepository.openCamera() }
     fun hideCamera() { cameraVisible.value = false }
     fun requestScreenOff() {
         extendedControlsRepository.requestScreenOff()
@@ -259,38 +274,8 @@ class ControlCenterViewModel(
     }
     fun dismissScreenCurtain() { screenCurtainVisible.value = false }
 
-    override fun onCleared() {
-        brightnessRepository.stop()
-        audioRepository.stop()
-        hvacRepository.stop()
-        super.onCleared()
-    }
-
     private companion object {
         const val BRIGHTNESS_WRITE_INTERVAL_MS = 50L
         const val TEMPERATURE_STEP = 0.5f
-    }
-}
-
-class SystemUiViewModelFactory(
-    private val navigationRepository: NavigationRepository,
-    private val brightnessRepository: BrightnessRepository,
-    private val audioRepository: AudioRepository,
-    private val hvacRepository: HvacRepository,
-    private val extendedControlsRepository: ExtendedControlsRepository,
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
-        modelClass.isAssignableFrom(SystemUiViewModel::class.java) ->
-            SystemUiViewModel(navigationRepository) as T
-        modelClass.isAssignableFrom(ControlCenterViewModel::class.java) ->
-            ControlCenterViewModel(
-                navigationRepository,
-                brightnessRepository,
-                audioRepository,
-                hvacRepository,
-                extendedControlsRepository,
-            ) as T
-        else -> error("Unknown ViewModel ${modelClass.name}")
     }
 }

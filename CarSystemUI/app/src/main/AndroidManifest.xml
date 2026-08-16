@@ -19,6 +19,7 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:name=".CarSystemUIApplication"
         android:persistent="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
@@ -26,7 +27,7 @@
         android:theme="@style/Theme.CarSystemUI">
 
         <receiver
-            android:name=".navigation.BootReceiver"
+            android:name=".BootReceiver"
             android:directBootAware="true"
             android:exported="true">
             <intent-filter android:priority="1000">
@@ -37,7 +38,7 @@
         </receiver>
 
         <service
-            android:name=".navigation.BottomNavigationService"
+            android:name=".service.CarSystemUIService"
             android:directBootAware="true"
             android:exported="false" />
 

@@ -1,6 +1,5 @@
 package com.android.car.systemui.data.repository
 
-import android.content.Context
 import com.android.car.systemui.data.model.AudioState
 import com.android.car.systemui.data.model.BrightnessState
 import com.android.car.systemui.data.model.ClimateZone
@@ -67,5 +66,5 @@ interface NavigationRepository {
 }
 
 interface StartupRepository {
-    fun initialize(context: Context)
+    fun initialize()
 }

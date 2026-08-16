@@ -91,9 +91,19 @@ not replace shared progress-dialog layouts or spinner drawables.
 
 ## 5. SystemUI architecture and Control Center
 
-The runtime UI is implemented with Kotlin and Jetpack Compose. A process-scoped
-dependency container supplies platform repositories to AndroidX ViewModels,
-while `BottomNavigationService` only owns the navigation and overlay windows.
+The runtime UI is implemented with Kotlin, Jetpack Compose, and Hilt. The
+`CarSystemUIApplication` is the process composition root: it owns the
+application-scoped dependency graph and starts the ordered
+`CarSystemUIStartable` map. Navigation, Control Center, and wallpaper startup
+are independent Hilt modules. `CarSystemUIService` is intentionally thin; it
+only provides the Android process anchor and calls the application's idempotent
+initializer. It does not own navigation, windows, receivers, or feature state.
+
+`BootReceiver` only starts `CarSystemUIService`. Android creates
+`CarSystemUIApplication` before the service, so application startup initializes
+the components once and a service restart cannot create duplicate windows or
+registrations. All process-scoped controllers and repositories are Hilt
+singletons.
 
 The rightmost navigation action opens Control Center. It provides manual display
 brightness, media volume, dual-zone HVAC temperature, and A/C controls. These
@@ -101,8 +111,8 @@ features are supplied by the separately deployed MiniIVI Car Service through the
 shared typed AIDL client. CarSystemUI no longer opens its own `android.car`
 connection or owns car-control permissions.
 
-The service reads HVAC capability and range information from the target VHAL at
-runtime. Final validation must therefore be performed on the target AAOS build;
+Control Center reads HVAC capability and range information from the target VHAL
+at runtime. Final validation must therefore be performed on the target AAOS build;
 a host build cannot verify vehicle property area IDs or vendor permission
 policy. If the service is unavailable, Control Center keeps rendering and marks
 the affected controls unavailable while the client retries the binding.

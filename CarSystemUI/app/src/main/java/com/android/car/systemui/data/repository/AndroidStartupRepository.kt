@@ -5,23 +5,29 @@ import android.content.ComponentName
 import android.content.Context
 import android.util.Log
 import com.android.car.systemui.wallpaper.CarWallpaperService
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.lang.reflect.Method
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class AndroidStartupRepository : StartupRepository {
-    override fun initialize(context: Context) {
-        if (context.getSystemService(Context.WALLPAPER_SERVICE) == null) {
+@Singleton
+class AndroidStartupRepository @Inject constructor(
+    @ApplicationContext private val applicationContext: Context,
+) : StartupRepository {
+    override fun initialize() {
+        if (applicationContext.getSystemService(Context.WALLPAPER_SERVICE) == null) {
             Log.w(TAG, "event=startup_step_skipped step=wallpaper reason=service_unavailable")
             return
         }
         runCatching {
-            val wallpaperManager = WallpaperManager.getInstance(context)
+            val wallpaperManager = WallpaperManager.getInstance(applicationContext)
             val setWallpaperComponent: Method = WallpaperManager::class.java.getMethod(
                 "setWallpaperComponent",
                 ComponentName::class.java,
             )
             setWallpaperComponent.invoke(
                 wallpaperManager,
-                ComponentName(context, CarWallpaperService::class.java),
+                ComponentName(applicationContext, CarWallpaperService::class.java),
             )
             Log.i(TAG, "event=startup_step_completed step=wallpaper")
         }.onFailure { error ->

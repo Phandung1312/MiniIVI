@@ -12,6 +12,8 @@ import com.android.car.systemui.data.repository.ExtendedControlsRepository
 import com.android.car.systemui.data.repository.NavigationRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -24,18 +26,22 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class SystemUiViewModelTest {
+class SystemUiStateControllerTest {
     private val dispatcher = StandardTestDispatcher()
+    private val applicationScope = CoroutineScope(dispatcher)
 
     @Before
     fun setUp() = Dispatchers.setMain(dispatcher)
 
     @After
-    fun tearDown() = Dispatchers.resetMain()
+    fun tearDown() {
+        applicationScope.cancel()
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun controlCenterCanBeToggledAndDismissed() {
-        val viewModel = SystemUiViewModel(FakeNavigationRepository())
+        val viewModel = SystemUiStateController(FakeNavigationRepository())
         assertFalse(viewModel.state.value.controlCenterVisible)
         viewModel.toggleControlCenter()
         assertTrue(viewModel.state.value.controlCenterVisible)
@@ -46,7 +52,7 @@ class SystemUiViewModelTest {
     @Test
     fun navigationActionsAreDelegated() {
         val repository = FakeNavigationRepository()
-        val viewModel = SystemUiViewModel(repository)
+        val viewModel = SystemUiStateController(repository)
         assertEquals(NavigationDestination.HOME, viewModel.state.value.selectedDestination)
         viewModel.toggleControlCenter()
         viewModel.goHome()
@@ -68,7 +74,7 @@ class SystemUiViewModelTest {
 
     @Test
     fun navigationSelectionIsExclusiveAndRestoresAfterControlCenterDismissal() {
-        val viewModel = SystemUiViewModel(FakeNavigationRepository())
+        val viewModel = SystemUiStateController(FakeNavigationRepository())
 
         viewModel.openAppList()
         assertEquals(NavigationDestination.APP_LIST, viewModel.state.value.selectedDestination)
@@ -97,13 +103,15 @@ class SystemUiViewModelTest {
         val brightness = FakeBrightnessRepository()
         val audio = FakeAudioRepository()
         val hvac = FakeHvacRepository()
-        val viewModel = ControlCenterViewModel(
+        val viewModel = ControlCenterStateController(
             FakeNavigationRepository(),
             brightness,
             audio,
             hvac,
             FakeExtendedControlsRepository(),
+            applicationScope,
         )
+        viewModel.start()
         brightness.mutable.value = BrightnessState(progress = 0.25f, available = true)
         audio.mutable.value = AudioState(volume = 5, minimum = 0, maximum = 10, available = true)
         hvac.mutable.value = HvacState(connecting = false, available = true)
@@ -135,12 +143,13 @@ class SystemUiViewModelTest {
     @Test
     fun systemActionsAreDelegatedAndCameraFallsBackOnlyWhenUnavailable() {
         val navigation = FakeNavigationRepository()
-        val viewModel = ControlCenterViewModel(
+        val viewModel = ControlCenterStateController(
             navigation,
             FakeBrightnessRepository(),
             FakeAudioRepository(),
             FakeHvacRepository(),
             FakeExtendedControlsRepository(),
+            applicationScope,
         )
 
         viewModel.openWifiSettings()

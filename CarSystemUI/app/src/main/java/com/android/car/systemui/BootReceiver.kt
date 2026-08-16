@@ -1,11 +1,11 @@
-package com.android.car.systemui.navigation
+package com.android.car.systemui
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Process
 import android.util.Log
-import com.android.car.systemui.di.SystemUiDependencies
+import com.android.car.systemui.service.CarSystemUIService
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -15,8 +15,7 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
         Log.i(TAG, "event=boot_received action=${intent.action}")
-        context.startService(Intent(context, BottomNavigationService::class.java))
-        SystemUiDependencies.from(context).startupRepository.initialize(context)
+        context.startService(Intent(context, CarSystemUIService::class.java))
     }
 
     private companion object {
