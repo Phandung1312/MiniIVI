@@ -72,9 +72,17 @@ class AndroidNavigationRepository @Inject constructor(
         launch(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
-    override fun openBluetoothSettings() {
-        logDebug("event=navigation_requested destination=bluetooth_settings")
-        launch(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    override fun openBluetoothApp() {
+        logDebug("event=navigation_requested destination=bluetooth_app")
+        launch(
+            Intent(Intent.ACTION_MAIN)
+                .setClassName(CAR_LAUNCHER_PACKAGE, BLUETOOTH_ACTIVITY)
+                .addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                ),
+        )
     }
 
     override fun openCamera(): Boolean {
@@ -144,6 +152,8 @@ class AndroidNavigationRepository @Inject constructor(
         const val CAR_LAUNCHER_PACKAGE = "com.android.car.launcher"
         const val APP_LIST_ACTIVITY =
             "com.android.car.launcher.feature.dashboard.presentation.HomeActivity"
+        const val BLUETOOTH_ACTIVITY =
+            "com.android.car.launcher.feature.bluetooth.presentation.BluetoothActivity"
         const val START_DESTINATION_EXTRA = "com.android.car.launcher.extra.START_DESTINATION"
         const val APPS_DESTINATION = "apps"
         const val CAMERA_ACTION = "com.miniivi.car.action.OPEN_CAMERA_VIEW"

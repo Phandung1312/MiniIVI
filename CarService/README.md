@@ -1,67 +1,22 @@
 # MiniIVI Car Service
 
-MiniIVI Car Service is a platform-signed privileged application that centralizes
-HVAC, media-volume, and display-brightness control for MiniIVI system clients.
-It is an application-level bound service and does not replace or register an
-Android framework car service. The production backend connects to the
-`android.car.Car` implementation already present in the target ROM.
+Privileged application-level Binder service for MiniIVI vehicle state and controls. It does not replace the Android framework car service.
 
-## Modules
+## Flow
 
-- `app` contains the privileged service and the AAOS/platform integration.
-- `car-service-api` contains the canonical AIDL and Parcelable contract.
-- `car-service-client` exposes remote feature states as Kotlin `StateFlow`s.
+`BootReceiver` starts the service -> clients bind through `IMiniIviCarService` -> the Binder permission is enforced -> feature controllers read/write platform backends -> controller `StateFlow`s publish state through Binder callbacks to clients.
 
-CarSystemUI and CarLauncher include the two library modules directly from this
-project. Contract changes must remain backward compatible and new AIDL methods
-must be appended to the interface.
+The service owns six controllers: brightness, audio, HVAC, vehicle status, quick controls, and Bluetooth. `car-service-client` exposes their remote states as Kotlin `StateFlow`s for CarSystemUI and CarLauncher.
 
-## Signing and framework dependencies
+## Implementation status
 
-CarService intentionally reads `../CarSystemUI/signing.properties` and uses the
-same platform keystore as CarSystemUI. The build fails when that file, its four
-required properties, or the configured keystore is missing. There is no debug
-key fallback because deploying a mismatched system APK can prevent Android from
-booting.
+| Feature | Real implementation | Mock or fallback |
+| --- | --- | --- |
+| Brightness | `DisplayManager` and `Settings.System` | None; settings are a platform fallback when display APIs are unavailable. |
+| Audio | `CarAudioManager` | `AudioManager` media-stream control when car audio is unavailable; this is a platform fallback, not a mock. |
+| HVAC | AAOS `CarPropertyManager` for available temperature, A/C, and climate properties | Missing AAOS properties use persisted local state for extended controls and unavailable zones. |
+| Vehicle status | AAOS `CarPropertyManager` for battery, range, outside temperature, and tire pressure | Missing individual properties use defaults: 78%, 30 C, 320 km, and 230 kPa. |
+| Bluetooth | System `BluetoothAdapter` for adapter state, discovery, paired devices, and connections | None; reports unavailable when Bluetooth is unsupported. |
+| Quick controls | System Wi-Fi, Bluetooth, hotspot, connectivity, and power APIs | Missing Wi-Fi/hotspot managers use persisted local state; valet mode is local persisted state only. |
 
-The build uses `app/libs/framework/android.car.jar` as a compile-only dependency;
-the target ROM supplies the implementation at runtime. Car APIs are called
-through their typed Android Automotive classes. The build also creates a
-minimal compile-time framework stub JAR and a small direct-call adapter JAR for
-hidden framework APIs that are not present in the public SDK `android.jar`.
-Only the adapter is packaged in the APK; the stub has no runtime behavior and
-must never be packaged. If a matching full ROM framework JAR becomes available,
-the adapter can be removed and that JAR should replace the compile stubs.
-
-## Build
-
-```powershell
-$env:JAVA_HOME = 'C:\Program Files\Java\jdk-17'
-.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug
-```
-
-## System deployment
-
-Deploy the APK and permission allowlist to `system_ext`; never use `adb install`:
-
-```powershell
-adb root
-adb remount
-adb shell "mkdir -p /system_ext/priv-app/MiniIVICarService"
-adb push .\app\build\outputs\apk\debug\app-debug.apk /system_ext/priv-app/MiniIVICarService/MiniIVICarService.apk
-adb shell "chmod 644 /system_ext/priv-app/MiniIVICarService/MiniIVICarService.apk"
-adb push .\system_ext\etc\permissions\privapp-permissions-com.miniivi.car.service.xml /system_ext/etc/permissions/privapp-permissions-com.miniivi.car.service.xml
-adb shell "mkdir -p /system_ext/etc/default-permissions"
-adb push .\system_ext\etc\default-permissions\default-permissions-com.miniivi.car.service.xml /system_ext/etc/default-permissions/default-permissions-com.miniivi.car.service.xml
-adb shell "sync"
-adb reboot
-```
-
-The service is direct-boot aware, runs in the system user, and protects its
-exported Binder with the signature permission
-`com.miniivi.car.permission.CONTROL`.
-
-The APK does not use `android.uid.system`. Do not add that shared UID: the
-service only needs a platform certificate and its privileged-permission
-allowlist, while a certificate mismatch on a package sharing UID 1000 causes a
-fatal PackageManager error during boot.
+The AIDL contract is defined in `api`. New Binder methods must be appended to preserve compatibility; current clients use API version 5 with minimum compatible version 3.

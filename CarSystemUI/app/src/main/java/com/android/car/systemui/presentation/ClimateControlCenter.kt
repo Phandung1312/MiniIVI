@@ -125,7 +125,7 @@ fun ControlCenterOverlay(
     onTemperatureUnitChanged: (TemperatureUnit) -> Unit = {},
     onOpenWifiSettings: () -> Unit = {},
     onOpenWirelessSettings: () -> Unit = {},
-    onOpenBluetoothSettings: () -> Unit = {},
+    onOpenBluetoothApp: () -> Unit = {},
     onOpenCamera: () -> Unit = {},
     onHideCamera: () -> Unit = {},
     onScreenOff: () -> Unit = {},
@@ -178,7 +178,7 @@ fun ControlCenterOverlay(
                                 onQuickControlChanged = onQuickControlChanged,
                                 onOpenWifiSettings = onOpenWifiSettings,
                                 onOpenWirelessSettings = onOpenWirelessSettings,
-                                onOpenBluetoothSettings = onOpenBluetoothSettings,
+                                onOpenBluetoothApp = onOpenBluetoothApp,
                                 onOpenCamera = onOpenCamera,
                                 onScreenOff = onScreenOff,
                                 modifier = Modifier.weight(1.18f).fillMaxHeight(),
@@ -530,7 +530,7 @@ private fun UtilityDeck(
     onQuickControlChanged: (QuickControl, Boolean) -> Unit,
     onOpenWifiSettings: () -> Unit,
     onOpenWirelessSettings: () -> Unit,
-    onOpenBluetoothSettings: () -> Unit,
+    onOpenBluetoothApp: () -> Unit,
     onOpenCamera: () -> Unit,
     onScreenOff: () -> Unit,
     modifier: Modifier,
@@ -574,7 +574,7 @@ private fun UtilityDeck(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     QuickTile(Icons.Rounded.Bluetooth, "Bluetooth", quick.bluetoothEnabled, compact, Modifier.weight(1f), {
                         onQuickControlChanged(QuickControl.BLUETOOTH, !quick.bluetoothEnabled)
-                    }, onOpenBluetoothSettings)
+                    }, onOpenBluetoothApp)
                     QuickTile(Icons.Rounded.CameraAlt, "Camera", false, compact, Modifier.weight(1f), {
                         onOpenCamera()
                     })

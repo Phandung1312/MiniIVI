@@ -9,10 +9,12 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.longClick
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.android.car.systemui.domain.model.AudioState
 import com.android.car.systemui.domain.model.BrightnessState
+import com.android.car.systemui.domain.model.ExtendedControlsState
 import com.android.car.systemui.domain.model.HvacState
 import com.android.car.systemui.domain.model.QuickControl
 import com.android.car.systemui.domain.model.QuickControlsState
@@ -247,5 +250,47 @@ class SystemUiComposeTest {
         showCamera = true
         composeRule.waitForIdle()
         composeRule.onNodeWithContentDescription("Mock 360 degree camera view").assertIsDisplayed()
+    }
+
+    @Test
+    fun longPressingWifiAndBluetoothOpensTargetsWithoutToggling() {
+        val toggledControls = mutableListOf<QuickControl>()
+        var wifiOpened = false
+        var bluetoothOpened = false
+        composeRule.setContent {
+            CarSystemUiTheme {
+                ControlCenterOverlay(
+                    visible = true,
+                    state = ControlCenterUiState(
+                        extendedControls = ExtendedControlsState(
+                            quickControls = QuickControlsState(
+                                available = true,
+                                capabilities = setOf(QuickControl.WIFI, QuickControl.BLUETOOTH),
+                            ),
+                        ),
+                    ),
+                    onDismiss = {},
+                    onBrightnessChanged = {},
+                    onBrightnessChangeFinished = {},
+                    onVolumeChanged = {},
+                    onTemperatureDecrease = {},
+                    onTemperatureIncrease = {},
+                    onAcChanged = {},
+                    onQuickControlChanged = { control, _ -> toggledControls += control },
+                    onOpenWifiSettings = { wifiOpened = true },
+                    onOpenBluetoothApp = { bluetoothOpened = true },
+                    onSettings = {},
+                    modifier = Modifier.size(960.dp, 520.dp),
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Wi-Fi").performClick()
+        composeRule.onNodeWithContentDescription("Wi-Fi").performTouchInput { longClick() }
+        composeRule.onNodeWithContentDescription("Bluetooth").performTouchInput { longClick() }
+
+        assertEquals(listOf(QuickControl.WIFI), toggledControls)
+        assertTrue(wifiOpened)
+        assertTrue(bluetoothOpened)
     }
 }

@@ -170,7 +170,7 @@ class SystemUiStateControllerTest {
 
         viewModel.openWifiSettings()
         viewModel.openWirelessSettings()
-        viewModel.openBluetoothSettings()
+        viewModel.openBluetoothApp()
         navigation.cameraAvailable = true
         viewModel.openCamera()
         dispatcher.scheduler.runCurrent()
@@ -194,7 +194,7 @@ private class FakeNavigationRepository : NavigationRepository {
     override fun openPhone() { actions += "phone" }
     override fun openWifiSettings() { actions += "wifi" }
     override fun openWirelessSettings() { actions += "wireless" }
-    override fun openBluetoothSettings() { actions += "bluetooth" }
+    override fun openBluetoothApp() { actions += "bluetooth" }
     override fun openCamera(): Boolean {
         actions += "camera"
         return cameraAvailable

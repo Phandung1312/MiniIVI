@@ -127,9 +127,13 @@ class ControlCenterComponent @Inject constructor(
                         onAutoRecirculationChanged = controlCenterStateController::setAutoRecirculation,
                         onSteeringWheelHeatChanged = controlCenterStateController::setSteeringWheelHeat,
                         onTemperatureUnitChanged = controlCenterStateController::setTemperatureUnit,
-                        onOpenWifiSettings = controlCenterStateController::openWifiSettings,
+                        onOpenWifiSettings = {
+                            openExternalApp(controlCenterStateController::openWifiSettings)
+                        },
                         onOpenWirelessSettings = controlCenterStateController::openWirelessSettings,
-                        onOpenBluetoothSettings = controlCenterStateController::openBluetoothSettings,
+                        onOpenBluetoothApp = {
+                            openExternalApp(controlCenterStateController::openBluetoothApp)
+                        },
                         onOpenCamera = controlCenterStateController::openCamera,
                         onHideCamera = controlCenterStateController::hideCamera,
                         onScreenOff = controlCenterStateController::requestScreenOff,
@@ -180,6 +184,11 @@ class ControlCenterComponent @Inject constructor(
 
     private fun logDebug(message: String) {
         if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, message)
+    }
+
+    private fun openExternalApp(open: () -> Unit) {
+        open()
+        systemUiStateController.onExternalAppOpened()
     }
 
     private companion object {

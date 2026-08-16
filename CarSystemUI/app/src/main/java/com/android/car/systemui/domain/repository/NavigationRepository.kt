@@ -7,6 +7,6 @@ interface NavigationRepository {
     fun openPhone()
     fun openWifiSettings()
     fun openWirelessSettings()
-    fun openBluetoothSettings()
+    fun openBluetoothApp()
     fun openCamera(): Boolean
 }

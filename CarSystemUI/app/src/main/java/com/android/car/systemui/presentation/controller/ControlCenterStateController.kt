@@ -158,7 +158,7 @@ class ControlCenterStateController @Inject constructor(
     fun hideMoreClimate() { moreClimateVisible.value = false }
     fun openWifiSettings() = navigationRepository.openWifiSettings()
     fun openWirelessSettings() = navigationRepository.openWirelessSettings()
-    fun openBluetoothSettings() = navigationRepository.openBluetoothSettings()
+    fun openBluetoothApp() = navigationRepository.openBluetoothApp()
     fun openCamera() { cameraVisible.value = !navigationRepository.openCamera() }
     fun hideCamera() { cameraVisible.value = false }
     fun requestScreenOff() {
