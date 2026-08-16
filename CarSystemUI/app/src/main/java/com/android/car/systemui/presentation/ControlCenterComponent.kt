@@ -20,6 +20,8 @@ import com.android.car.systemui.core.CarSystemUIStartable
 import com.android.car.systemui.core.SystemUiComposeViewFactory
 import com.android.car.systemui.core.SystemUiLifecycleOwner
 import com.android.car.systemui.core.SystemUiWindowLayout
+import com.android.car.systemui.presentation.controller.ControlCenterStateController
+import com.android.car.systemui.presentation.controller.SystemUiStateController
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

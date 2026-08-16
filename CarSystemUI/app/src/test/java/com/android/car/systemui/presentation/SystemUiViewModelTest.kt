@@ -1,15 +1,23 @@
 package com.android.car.systemui.presentation
 
-import com.android.car.systemui.data.model.AudioState
-import com.android.car.systemui.data.model.BrightnessState
-import com.android.car.systemui.data.model.ClimateZone
-import com.android.car.systemui.data.model.HvacState
-import com.android.car.systemui.data.model.ExtendedControlsState
-import com.android.car.systemui.data.repository.AudioRepository
-import com.android.car.systemui.data.repository.BrightnessRepository
-import com.android.car.systemui.data.repository.HvacRepository
-import com.android.car.systemui.data.repository.ExtendedControlsRepository
-import com.android.car.systemui.data.repository.NavigationRepository
+import com.android.car.systemui.domain.model.AudioState
+import com.android.car.systemui.domain.model.BrightnessState
+import com.android.car.systemui.domain.model.ClimateFanDirection
+import com.android.car.systemui.domain.model.ClimateWindow
+import com.android.car.systemui.domain.model.ClimateZone
+import com.android.car.systemui.domain.model.ExtendedControlsState
+import com.android.car.systemui.domain.model.HvacState
+import com.android.car.systemui.domain.model.QuickControl
+import com.android.car.systemui.domain.model.TemperatureUnit
+import com.android.car.systemui.domain.repository.AudioRepository
+import com.android.car.systemui.domain.repository.BrightnessRepository
+import com.android.car.systemui.domain.repository.CarServiceSession
+import com.android.car.systemui.domain.repository.ExtendedControlsRepository
+import com.android.car.systemui.domain.repository.HvacRepository
+import com.android.car.systemui.domain.repository.NavigationRepository
+import com.android.car.systemui.presentation.controller.ControlCenterStateController
+import com.android.car.systemui.presentation.controller.SystemUiStateController
+import com.android.car.systemui.presentation.model.NavigationDestination
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CoroutineScope
@@ -103,14 +111,17 @@ class SystemUiStateControllerTest {
         val brightness = FakeBrightnessRepository()
         val audio = FakeAudioRepository()
         val hvac = FakeHvacRepository()
+        val session = FakeCarServiceSession()
         val viewModel = ControlCenterStateController(
             FakeNavigationRepository(),
             brightness,
             audio,
             hvac,
             FakeExtendedControlsRepository(),
+            session,
             applicationScope,
         )
+        viewModel.start()
         viewModel.start()
         brightness.mutable.value = BrightnessState(progress = 0.25f, available = true)
         audio.mutable.value = AudioState(volume = 5, minimum = 0, maximum = 10, available = true)
@@ -138,6 +149,10 @@ class SystemUiStateControllerTest {
         assertEquals(1, brightness.refreshCount)
         assertEquals(1, audio.refreshCount)
         assertEquals(1, hvac.refreshCount)
+        assertEquals(1, session.startCount)
+
+        viewModel.stop()
+        assertEquals(1, session.stopCount)
     }
 
     @Test
@@ -149,6 +164,7 @@ class SystemUiStateControllerTest {
             FakeAudioRepository(),
             FakeHvacRepository(),
             FakeExtendedControlsRepository(),
+            FakeCarServiceSession(),
             applicationScope,
         )
 
@@ -190,8 +206,6 @@ private class FakeBrightnessRepository : BrightnessRepository {
     override val state = mutable
     var lastValue: Float? = null
     var refreshCount = 0
-    override fun start() = Unit
-    override fun stop() = Unit
     override fun refresh() { refreshCount++ }
     override suspend fun setBrightness(progress: Float) { lastValue = progress }
 }
@@ -201,8 +215,6 @@ private class FakeAudioRepository : AudioRepository {
     override val state = mutable
     var lastVolume = -1
     var refreshCount = 0
-    override fun start() = Unit
-    override fun stop() = Unit
     override fun refresh() { refreshCount++ }
     override fun setVolume(volume: Int) { lastVolume = volume }
 }
@@ -213,8 +225,6 @@ private class FakeHvacRepository : HvacRepository {
     var lastAdjustment: Pair<ClimateZone, Float>? = null
     var lastAc = false
     var refreshCount = 0
-    override fun start() = Unit
-    override fun stop() = Unit
     override fun refresh() { refreshCount++ }
     override fun adjustTemperature(zone: ClimateZone, delta: Float) {
         lastAdjustment = zone to delta
@@ -224,22 +234,29 @@ private class FakeHvacRepository : HvacRepository {
 
 private class FakeExtendedControlsRepository : ExtendedControlsRepository {
     override val state = MutableStateFlow(ExtendedControlsState())
-    override fun start() = Unit
     override fun refresh() = Unit
     override fun setPower(enabled: Boolean) = Unit
     override fun setAuto(enabled: Boolean) = Unit
     override fun setSync(enabled: Boolean) = Unit
     override fun setRecirculation(enabled: Boolean) = Unit
     override fun setFanSpeed(zone: ClimateZone, speed: Int) = Unit
-    override fun setFanDirection(zone: ClimateZone, direction: Int) = Unit
-    override fun setDefroster(window: Int, enabled: Boolean) = Unit
+    override fun setFanDirection(zone: ClimateZone, direction: ClimateFanDirection) = Unit
+    override fun setDefroster(window: ClimateWindow, enabled: Boolean) = Unit
     override fun setSeatHeating(zone: ClimateZone, level: Int) = Unit
     override fun setSeatVentilation(zone: ClimateZone, level: Int) = Unit
     override fun setMaxAc(enabled: Boolean) = Unit
     override fun setMaxDefrost(enabled: Boolean) = Unit
     override fun setAutoRecirculation(enabled: Boolean) = Unit
     override fun setSteeringWheelHeat(level: Int) = Unit
-    override fun setTemperatureUnit(unit: Int) = Unit
-    override fun setQuickControl(control: Int, enabled: Boolean) = Unit
+    override fun setTemperatureUnit(unit: TemperatureUnit) = Unit
+    override fun setQuickControl(control: QuickControl, enabled: Boolean) = Unit
     override fun requestScreenOff() = Unit
+}
+
+private class FakeCarServiceSession : CarServiceSession {
+    var startCount = 0
+    var stopCount = 0
+
+    override fun start() { startCount++ }
+    override fun stop() { stopCount++ }
 }

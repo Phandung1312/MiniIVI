@@ -19,16 +19,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.android.car.systemui.data.model.AudioState
-import com.android.car.systemui.data.model.BrightnessState
-import com.android.car.systemui.data.model.HvacState
+import com.android.car.systemui.domain.model.AudioState
+import com.android.car.systemui.domain.model.BrightnessState
+import com.android.car.systemui.domain.model.HvacState
+import com.android.car.systemui.domain.model.QuickControl
+import com.android.car.systemui.domain.model.QuickControlsState
 import com.android.car.systemui.presentation.CarSystemUiTheme
 import com.android.car.systemui.presentation.NavigationRailScreen
 import com.android.car.systemui.presentation.ControlCenterOverlay
-import com.android.car.systemui.presentation.ControlCenterUiState
-import com.android.car.systemui.presentation.NavigationDestination
-import com.miniivi.car.api.QuickControl
-import com.miniivi.car.api.QuickControlsState
+import com.android.car.systemui.presentation.model.ControlCenterUiState
+import com.android.car.systemui.presentation.model.NavigationDestination
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -133,8 +133,7 @@ class SystemUiComposeTest {
                         wifiEnabled = true,
                         wifiConnected = true,
                         bluetoothEnabled = false,
-                        realCapabilities = QuickControl.WIFI_CAPABILITY or
-                            QuickControl.BLUETOOTH_CAPABILITY,
+                        capabilities = setOf(QuickControl.WIFI, QuickControl.BLUETOOTH),
                     ),
                     audio = AudioState(volume = 0, maximum = 10, available = true),
                     onHome = {},

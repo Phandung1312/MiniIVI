@@ -1,6 +1,7 @@
 package com.android.car.systemui.core
 
 import android.content.res.Configuration
+import com.android.car.systemui.domain.policy.SystemUserPolicy
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import javax.inject.Provider

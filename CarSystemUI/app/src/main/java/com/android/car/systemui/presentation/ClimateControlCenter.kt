@@ -83,12 +83,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.android.car.systemui.R
-import com.android.car.systemui.data.model.ClimateZone
-import com.miniivi.car.api.ClimateFanDirection
-import com.miniivi.car.api.ClimateZoneControlState
-import com.miniivi.car.api.HvacZone
-import com.miniivi.car.api.QuickControl
-import com.miniivi.car.api.TemperatureUnit
+import com.android.car.systemui.domain.model.ClimateFanDirection
+import com.android.car.systemui.domain.model.ClimateZone
+import com.android.car.systemui.domain.model.ClimateZoneControlState
+import com.android.car.systemui.domain.model.QuickControl
+import com.android.car.systemui.domain.model.TemperatureUnit
+import com.android.car.systemui.presentation.model.ControlCenterUiState
 import java.util.Locale
 
 @Composable
@@ -110,19 +110,19 @@ fun ControlCenterOverlay(
     onSyncChanged: (Boolean) -> Unit = {},
     onRecirculationChanged: (Boolean) -> Unit = {},
     onFanSpeedChanged: (ClimateZone, Int) -> Unit = { _, _ -> },
-    onFanDirectionChanged: (ClimateZone, Int) -> Unit = { _, _ -> },
+    onFanDirectionChanged: (ClimateZone, ClimateFanDirection) -> Unit = { _, _ -> },
     onFrontDefrostChanged: (Boolean) -> Unit = {},
     onRearDefrostChanged: (Boolean) -> Unit = {},
     onSeatHeatingChanged: (ClimateZone, Int) -> Unit = { _, _ -> },
     onSeatVentilationChanged: (ClimateZone, Int) -> Unit = { _, _ -> },
-    onQuickControlChanged: (Int, Boolean) -> Unit = { _, _ -> },
+    onQuickControlChanged: (QuickControl, Boolean) -> Unit = { _, _ -> },
     onShowMoreClimate: () -> Unit = {},
     onHideMoreClimate: () -> Unit = {},
     onMaxAcChanged: (Boolean) -> Unit = {},
     onMaxDefrostChanged: (Boolean) -> Unit = {},
     onAutoRecirculationChanged: (Boolean) -> Unit = {},
     onSteeringWheelHeatChanged: (Int) -> Unit = {},
-    onTemperatureUnitChanged: (Int) -> Unit = {},
+    onTemperatureUnitChanged: (TemperatureUnit) -> Unit = {},
     onOpenWifiSettings: () -> Unit = {},
     onOpenWirelessSettings: () -> Unit = {},
     onOpenBluetoothSettings: () -> Unit = {},
@@ -250,7 +250,7 @@ private fun ClimateDeck(
     onSyncChanged: (Boolean) -> Unit,
     onRecirculationChanged: (Boolean) -> Unit,
     onFanSpeedChanged: (ClimateZone, Int) -> Unit,
-    onFanDirectionChanged: (ClimateZone, Int) -> Unit,
+    onFanDirectionChanged: (ClimateZone, ClimateFanDirection) -> Unit,
     onFrontDefrostChanged: (Boolean) -> Unit,
     onRearDefrostChanged: (Boolean) -> Unit,
     onShowMoreClimate: () -> Unit,
@@ -341,7 +341,7 @@ private fun TemperatureDeck(
     compact: Boolean,
     onDecrease: () -> Unit,
     onIncrease: () -> Unit,
-    onDirection: (Int) -> Unit,
+    onDirection: (ClimateFanDirection) -> Unit,
     modifier: Modifier,
 ) {
     SystemUiGlassPanel(modifier, RoundedCornerShape(24.dp)) {
@@ -419,8 +419,8 @@ private fun FanControl(zone: ClimateZoneControlState, compact: Boolean, onChange
 @Composable
 private fun CabinAirflowCanvas(
     powerOn: Boolean,
-    driverDirection: Int,
-    passengerDirection: Int,
+    driverDirection: ClimateFanDirection,
+    passengerDirection: ClimateFanDirection,
     driverFanStrength: Float,
     passengerFanStrength: Float,
     modifier: Modifier,
@@ -443,7 +443,12 @@ private fun CabinAirflowCanvas(
                     .graphicsLayer(alpha = if (powerOn) 1f else 0.48f),
             )
             Canvas(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 14.dp)) {
-                fun ribbon(startX: Float, centerX: Float, direction: Int, strength: Float) {
+                fun ribbon(
+                    startX: Float,
+                    centerX: Float,
+                    direction: ClimateFanDirection,
+                    strength: Float,
+                ) {
                     val normalizedStrength = strength.coerceIn(0.12f, 1f)
                     val active = Color(0xFFB99CFF).copy(
                         alpha = if (powerOn) 0.38f + normalizedStrength * 0.5f else 0.12f,
@@ -522,7 +527,7 @@ private fun UtilityDeck(
     onBrightnessChangeFinished: () -> Unit,
     onVolumeChanged: (Float) -> Unit,
     onVolumeChangeFinished: () -> Unit,
-    onQuickControlChanged: (Int, Boolean) -> Unit,
+    onQuickControlChanged: (QuickControl, Boolean) -> Unit,
     onOpenWifiSettings: () -> Unit,
     onOpenWirelessSettings: () -> Unit,
     onOpenBluetoothSettings: () -> Unit,
@@ -803,7 +808,7 @@ private fun MoreClimateDialog(
     onMaxDefrostChanged: (Boolean) -> Unit,
     onAutoRecirculationChanged: (Boolean) -> Unit,
     onSteeringWheelHeatChanged: (Int) -> Unit,
-    onTemperatureUnitChanged: (Int) -> Unit,
+    onTemperatureUnitChanged: (TemperatureUnit) -> Unit,
 ) {
     val climate = state.extendedControls.climate
     Box(
@@ -896,18 +901,18 @@ private fun ScreenCurtain(onDismiss: () -> Unit) {
     }
 }
 
-private fun airflowIcon(direction: Int): ImageVector = when (direction) {
+private fun airflowIcon(direction: ClimateFanDirection): ImageVector = when (direction) {
+    ClimateFanDirection.FACE -> Icons.Rounded.Air
     ClimateFanDirection.FEET -> Icons.Rounded.Air
     ClimateFanDirection.FACE_AND_FEET -> Icons.Rounded.Sync
     ClimateFanDirection.DEFROST -> Icons.Rounded.SevereCold
-    else -> Icons.Rounded.Air
 }
 
-private fun directionLabel(direction: Int): String = when (direction) {
+private fun directionLabel(direction: ClimateFanDirection): String = when (direction) {
+    ClimateFanDirection.FACE -> "Face airflow"
     ClimateFanDirection.FEET -> "Feet airflow"
     ClimateFanDirection.FACE_AND_FEET -> "Face and feet airflow"
     ClimateFanDirection.DEFROST -> "Windshield airflow"
-    else -> "Face airflow"
 }
 
 private fun nextLevel(level: Int, maximum: Int): Int = if (level >= maximum) 0 else level + 1

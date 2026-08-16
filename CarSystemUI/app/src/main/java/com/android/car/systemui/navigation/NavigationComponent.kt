@@ -20,9 +20,9 @@ import com.android.car.systemui.core.CarSystemUIStartable
 import com.android.car.systemui.core.SystemUiComposeViewFactory
 import com.android.car.systemui.core.SystemUiWindowLayout
 import com.android.car.systemui.presentation.CarSystemUiTheme
+import com.android.car.systemui.presentation.controller.ControlCenterStateController
+import com.android.car.systemui.presentation.controller.SystemUiStateController
 import com.android.car.systemui.presentation.NavigationRailScreen
-import com.android.car.systemui.presentation.SystemUiStateController
-import com.android.car.systemui.presentation.ControlCenterStateController
 import com.miniivi.car.api.NavigationStateContract
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject

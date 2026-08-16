@@ -2,7 +2,7 @@ package com.android.car.systemui.wallpaper
 
 import android.content.res.Configuration
 import com.android.car.systemui.core.CarSystemUIStartable
-import com.android.car.systemui.data.repository.StartupRepository
+import com.android.car.systemui.domain.repository.StartupRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 

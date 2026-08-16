@@ -4,8 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.android.car.systemui.presentation.NavigationDestination
-import com.android.car.systemui.presentation.SystemUiStateController
+import com.android.car.systemui.presentation.controller.SystemUiStateController
+import com.android.car.systemui.presentation.model.NavigationDestination
 import com.miniivi.car.api.NavigationStateContract
 import javax.inject.Inject
 import javax.inject.Singleton

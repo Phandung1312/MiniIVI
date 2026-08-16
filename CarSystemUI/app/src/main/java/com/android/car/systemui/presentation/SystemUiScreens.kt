@@ -77,12 +77,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.android.car.systemui.R
-import com.android.car.systemui.data.model.ClimateZone
-import com.android.car.systemui.data.model.AudioState
-import com.android.car.systemui.data.model.HvacState
-import com.android.car.systemui.data.model.TemperatureZone
-import com.miniivi.car.api.QuickControl
-import com.miniivi.car.api.QuickControlsState
+import com.android.car.systemui.domain.model.AudioState
+import com.android.car.systemui.domain.model.ClimateZone
+import com.android.car.systemui.domain.model.HvacState
+import com.android.car.systemui.domain.model.QuickControl
+import com.android.car.systemui.domain.model.QuickControlsState
+import com.android.car.systemui.domain.model.TemperatureZone
+import com.android.car.systemui.presentation.model.ControlCenterUiState
+import com.android.car.systemui.presentation.model.NavigationDestination
 import java.util.Locale
 
 @Composable
@@ -239,10 +241,8 @@ private fun StatusPanel(
     buttonSize: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val wifiAvailable = state.available &&
-        state.realCapabilities and QuickControl.WIFI_CAPABILITY != 0L
-    val bluetoothAvailable = state.available &&
-        state.realCapabilities and QuickControl.BLUETOOTH_CAPABILITY != 0L
+    val wifiAvailable = state.available && QuickControl.WIFI in state.capabilities
+    val bluetoothAvailable = state.available && QuickControl.BLUETOOTH in state.capabilities
     val showMute = audio.available && audio.volume == 0
     BoxWithConstraints(
         modifier = modifier

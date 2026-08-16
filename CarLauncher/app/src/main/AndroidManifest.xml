@@ -21,7 +21,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CarLauncher">
         <activity
-            android:name=".feature.dashboard.HomeActivity"
+            android:name=".feature.dashboard.presentation.HomeActivity"
             android:exported="true"
             android:launchMode="singleTask">
             <intent-filter android:priority="1000">
@@ -31,10 +31,10 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".feature.media.MediaActivity"
+            android:name=".feature.media.presentation.MediaActivity"
             android:exported="false" />
         <activity
-            android:name=".feature.bluetooth.BluetoothActivity"
+            android:name=".feature.bluetooth.presentation.BluetoothActivity"
             android:exported="false" />
     </application>
 </manifest>
