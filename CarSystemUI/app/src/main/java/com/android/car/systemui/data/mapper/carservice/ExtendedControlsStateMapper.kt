@@ -73,8 +73,11 @@ private fun com.miniivi.car.api.ClimateZoneControlState.toDomain(): ClimateZoneC
         fanSpeed = fanSpeed,
         minimumFanSpeed = minimumFanSpeed,
         maximumFanSpeed = maximumFanSpeed,
-        fanDirection = fanDirection.toDomainFanDirection(),
-        availableFanDirections = availableFanDirections.map { it.toDomainFanDirection() },
+        fanDirection = fanDirection.toDomainFanDirection() ?: ClimateFanDirection.FACE,
+        availableFanDirections = availableFanDirections.asSequence()
+            .mapNotNull { it.toDomainFanDirection() }
+            .distinct()
+            .toList(),
         seatHeatingLevel = seatHeatingLevel,
         maximumSeatHeatingLevel = maximumSeatHeatingLevel,
         seatVentilationLevel = seatVentilationLevel,
@@ -87,12 +90,12 @@ private fun Int.toDomainClimateZone(): ClimateZone = when (this) {
     else -> ClimateZone.RIGHT
 }
 
-private fun Int.toDomainFanDirection(): ClimateFanDirection = when (this) {
+private fun Int.toDomainFanDirection(): ClimateFanDirection? = when (this) {
     ApiClimateFanDirection.FACE -> ClimateFanDirection.FACE
     ApiClimateFanDirection.FEET -> ClimateFanDirection.FEET
     ApiClimateFanDirection.FACE_AND_FEET -> ClimateFanDirection.FACE_AND_FEET
     ApiClimateFanDirection.DEFROST -> ClimateFanDirection.DEFROST
-    else -> ClimateFanDirection.FACE
+    else -> null
 }
 
 private fun Int.toDomainTemperatureUnit(): TemperatureUnit = when (this) {

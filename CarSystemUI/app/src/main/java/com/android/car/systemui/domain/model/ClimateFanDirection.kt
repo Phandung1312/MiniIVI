@@ -4,5 +4,13 @@ enum class ClimateFanDirection {
     FACE,
     FEET,
     FACE_AND_FEET,
-    DEFROST,
+    DEFROST;
+
+    companion object {
+        val STANDARD_OPTIONS: List<ClimateFanDirection> = listOf(
+            FACE,
+            FEET,
+            FACE_AND_FEET,
+        )
+    }
 }

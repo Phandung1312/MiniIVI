@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.longClick
 import androidx.compose.foundation.layout.size
@@ -20,9 +21,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.unit.dp
 import com.android.car.systemui.domain.model.AudioState
 import com.android.car.systemui.domain.model.BrightnessState
+import com.android.car.systemui.domain.model.ClimateControlState
+import com.android.car.systemui.domain.model.ClimateFanDirection
+import com.android.car.systemui.domain.model.ClimateZone
+import com.android.car.systemui.domain.model.ClimateZoneControlState
 import com.android.car.systemui.domain.model.ExtendedControlsState
 import com.android.car.systemui.domain.model.HvacState
 import com.android.car.systemui.domain.model.QuickControl
@@ -122,6 +128,76 @@ class SystemUiComposeTest {
         composeRule.onNodeWithContentDescription("Camera")
             .assertWidthIsAtLeast(48.dp)
             .assertHeightIsAtLeast(48.dp)
+    }
+
+    @Test
+    fun climateFanDirectionsUseThreeStableOptionsAndOneSelectionPerZone() {
+        val clickedDirections = mutableListOf<Pair<ClimateZone, ClimateFanDirection>>()
+        composeRule.setContent {
+            CarSystemUiTheme {
+                ControlCenterOverlay(
+                    visible = true,
+                    state = ControlCenterUiState(
+                        extendedControls = ExtendedControlsState(
+                            climate = ClimateControlState(
+                                driverZone = ClimateZoneControlState(
+                                    zone = ClimateZone.LEFT,
+                                    fanDirection = ClimateFanDirection.FACE_AND_FEET,
+                                    availableFanDirections = listOf(
+                                        ClimateFanDirection.FACE,
+                                        ClimateFanDirection.FACE,
+                                    ),
+                                ),
+                                passengerZone = ClimateZoneControlState(
+                                    zone = ClimateZone.RIGHT,
+                                    fanDirection = ClimateFanDirection.FACE,
+                                    availableFanDirections = listOf(
+                                        ClimateFanDirection.FACE,
+                                        ClimateFanDirection.FACE_AND_FEET,
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                    onDismiss = {},
+                    onBrightnessChanged = {},
+                    onBrightnessChangeFinished = {},
+                    onVolumeChanged = {},
+                    onTemperatureDecrease = {},
+                    onTemperatureIncrease = {},
+                    onAcChanged = {},
+                    onSettings = {},
+                    onFanDirectionChanged = { zone, direction ->
+                        clickedDirections += zone to direction
+                    },
+                    modifier = Modifier.size(1920.dp, 1080.dp),
+                )
+            }
+        }
+
+        composeRule.onAllNodesWithContentDescription("Face airflow")
+            .assertCountEquals(2)
+        composeRule.onAllNodesWithContentDescription("Feet airflow")
+            .assertCountEquals(2)
+        composeRule.onAllNodesWithContentDescription("Face and feet airflow")
+            .assertCountEquals(2)
+
+        assertEquals(listOf(false, true), selectedStates("Face airflow"))
+        assertEquals(listOf(false, false), selectedStates("Feet airflow"))
+        assertEquals(listOf(true, false), selectedStates("Face and feet airflow"))
+
+        composeRule.onAllNodesWithContentDescription("Face airflow")[0].performClick()
+        composeRule.onAllNodesWithContentDescription("Feet airflow")[0].performClick()
+        composeRule.onAllNodesWithContentDescription("Face and feet airflow")[0].performClick()
+
+        assertEquals(
+            listOf(
+                ClimateZone.LEFT to ClimateFanDirection.FACE,
+                ClimateZone.LEFT to ClimateFanDirection.FEET,
+                ClimateZone.LEFT to ClimateFanDirection.FACE_AND_FEET,
+            ),
+            clickedDirections,
+        )
     }
 
     @Test
@@ -293,4 +369,15 @@ class SystemUiComposeTest {
         assertTrue(wifiOpened)
         assertTrue(bluetoothOpened)
     }
+
+    private fun selectedStates(description: String): List<Boolean> =
+        composeRule.onAllNodesWithContentDescription(description)
+            .fetchSemanticsNodes()
+            .map {
+                if (it.config.contains(SemanticsProperties.Selected)) {
+                    it.config[SemanticsProperties.Selected]
+                } else {
+                    false
+                }
+            }
 }

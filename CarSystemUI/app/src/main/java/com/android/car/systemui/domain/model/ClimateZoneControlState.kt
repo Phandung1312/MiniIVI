@@ -9,11 +9,8 @@ data class ClimateZoneControlState(
     val minimumFanSpeed: Int = 0,
     val maximumFanSpeed: Int = 7,
     val fanDirection: ClimateFanDirection = ClimateFanDirection.FACE,
-    val availableFanDirections: List<ClimateFanDirection> = listOf(
-        ClimateFanDirection.FACE,
-        ClimateFanDirection.FEET,
-        ClimateFanDirection.FACE_AND_FEET,
-    ),
+    val availableFanDirections: List<ClimateFanDirection> =
+        ClimateFanDirection.STANDARD_OPTIONS,
     val seatHeatingLevel: Int = 0,
     val maximumSeatHeatingLevel: Int = 3,
     val seatVentilationLevel: Int = 0,
