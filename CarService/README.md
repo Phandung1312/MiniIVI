@@ -8,7 +8,7 @@ Android framework car service. The production backend connects to the
 
 ## Modules
 
-- `app` contains the privileged service and the AAOS/platform adapters.
+- `app` contains the privileged service and the AAOS/platform integration.
 - `car-service-api` contains the canonical AIDL and Parcelable contract.
 - `car-service-client` exposes remote feature states as Kotlin `StateFlow`s.
 
@@ -24,10 +24,14 @@ required properties, or the configured keystore is missing. There is no debug
 key fallback because deploying a mismatched system APK can prevent Android from
 booting.
 
-The build creates a minimal compile-time framework stub JAR and a small runtime
-adapter JAR for hidden display/current-user calls. Only the adapter is packaged
-in the APK. The stub has no runtime behavior and must never be packaged. If the
-matching ROM framework JAR becomes available, use it as `compileOnly` instead.
+The build uses `app/libs/framework/android.car.jar` as a compile-only dependency;
+the target ROM supplies the implementation at runtime. Car APIs are called
+through their typed Android Automotive classes. The build also creates a
+minimal compile-time framework stub JAR and a small direct-call adapter JAR for
+hidden framework APIs that are not present in the public SDK `android.jar`.
+Only the adapter is packaged in the APK; the stub has no runtime behavior and
+must never be packaged. If a matching full ROM framework JAR becomes available,
+the adapter can be removed and that JAR should replace the compile stubs.
 
 ## Build
 

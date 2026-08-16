@@ -31,11 +31,7 @@ class CurrentUserProvider(private val applicationContext: Context) {
         val userId = userId()
         val handle = UserHandle.getUserHandleForUid(userId * PER_USER_RANGE)
         return runCatching {
-            Context::class.java.getMethod(
-                "createContextAsUser",
-                UserHandle::class.java,
-                Int::class.javaPrimitiveType,
-            ).invoke(applicationContext, handle, 0) as Context
+            FrameworkPlatformApi.createContextAsUser(applicationContext, handle, 0)
         }.getOrElse { error ->
             throw IllegalStateException("Unable to create a context for user $userId", error)
         }

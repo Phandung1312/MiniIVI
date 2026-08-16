@@ -1,5 +1,9 @@
 package com.miniivi.car.service.control
 
+import android.car.Car
+import android.car.media.CarAudioManager
+import android.car.media.CarVolumeGroupEvent
+import android.car.media.CarVolumeGroupEventCallback
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -12,7 +16,6 @@ import androidx.core.content.ContextCompat
 import com.miniivi.car.api.AudioState
 import com.miniivi.car.api.CarServiceError
 import com.miniivi.car.api.FeatureStatus
-import java.lang.reflect.Proxy
 import java.util.concurrent.Executor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -43,8 +46,8 @@ class AudioController(
         onReady = { lifecycleCar -> scope.launch { onCarReady(lifecycleCar) } },
         onUnavailable = { scope.launch { onCarUnavailable() } },
     )
-    private var carAudioManager: Any? = null
-    private var carVolumeCallback: Any? = null
+    private var carAudioManager: CarAudioManager? = null
+    private var carVolumeCallback: CarVolumeGroupEventCallback? = null
     private var mediaGroupId: Int? = null
 
     private val volumeReceiver = object : BroadcastReceiver() {
@@ -100,12 +103,7 @@ class AudioController(
             val groupId = mediaGroupId
             runCatching {
                 if (manager != null && groupId != null) {
-                    manager.javaClass.getMethod(
-                        "setGroupVolume",
-                        Int::class.javaPrimitiveType,
-                        Int::class.javaPrimitiveType,
-                        Int::class.javaPrimitiveType,
-                    ).invoke(manager, groupId, clamped, 0)
+                    manager.setGroupVolume(groupId, clamped, 0)
                     Log.d(TAG, "event=volume_set feature=audio backend=car_audio volume=$clamped")
                 } else {
                     checkNotNull(audioManager) { "Audio service is unavailable" }
@@ -128,7 +126,7 @@ class AudioController(
         return false
     }
 
-    private fun onCarReady(lifecycleCar: Any) {
+    private fun onCarReady(lifecycleCar: Car) {
         if (!started || carAudioManager != null) return
         runCatching { connectCarAudioManager(lifecycleCar) }
             .onSuccess { hasCallback ->
@@ -159,44 +157,30 @@ class AudioController(
         refreshStreamVolume()
     }
 
-    private fun connectCarAudioManager(lifecycleCar: Any): Boolean {
-        val carClass = Class.forName(CAR_CLASS)
-        val manager = carClass.getMethod("getCarManager", String::class.java)
-            .invoke(lifecycleCar, AUDIO_SERVICE)
+    private fun connectCarAudioManager(lifecycleCar: Car): Boolean {
+        val manager = lifecycleCar.getCarManager(CarAudioManager::class.java)
             ?: error("Car audio service is unavailable")
         carAudioManager = manager
         mediaGroupId = runCatching {
-            manager.javaClass.getMethod(
-                "getVolumeGroupIdForUsage",
-                Int::class.javaPrimitiveType,
-            ).invoke(manager, AudioAttributes.USAGE_MEDIA) as Int
+            manager.getVolumeGroupIdForUsage(AudioAttributes.USAGE_MEDIA)
         }.getOrElse {
-            val count = manager.javaClass.getMethod("getVolumeGroupCount").invoke(manager) as Int
+            val count = manager.getVolumeGroupCount()
             check(count > 0) { "No car audio volume groups are available" }
             DEFAULT_MEDIA_GROUP
         }
         return registerCarVolumeCallback(manager)
     }
 
-    private fun registerCarVolumeCallback(manager: Any): Boolean = runCatching {
-        val callbackClass = Class.forName(CAR_VOLUME_GROUP_EVENT_CALLBACK)
-        val callback = Proxy.newProxyInstance(
-            callbackClass.classLoader,
-            arrayOf(callbackClass),
-        ) { proxy, method, args ->
-            when (method.name) {
-                "onVolumeGroupEvent" -> refresh()
-                "toString" -> "MiniIVI car audio callback"
-                "hashCode" -> System.identityHashCode(proxy)
-                "equals" -> proxy === args?.firstOrNull()
-                else -> null
+    private fun registerCarVolumeCallback(manager: CarAudioManager): Boolean = runCatching {
+        val callback = object : CarVolumeGroupEventCallback {
+            override fun onVolumeGroupEvent(events: MutableList<CarVolumeGroupEvent>) {
+                refresh()
             }
         }
-        val registered = manager.javaClass.getMethod(
-            "registerCarVolumeGroupEventCallback",
-            Executor::class.java,
-            callbackClass,
-        ).invoke(manager, Executor { command -> command.run() }, callback) as Boolean
+        val registered = manager.registerCarVolumeGroupEventCallback(
+            Executor { command -> command.run() },
+            callback,
+        )
         if (registered) carVolumeCallback = callback
         registered
     }.getOrDefault(false)
@@ -225,9 +209,9 @@ class AudioController(
                 AudioState(
                     status = FeatureStatus.READY,
                     available = true,
-                    volume = invokeGroupInt(manager, "getGroupVolume", groupId),
-                    minimum = invokeGroupInt(manager, "getGroupMinVolume", groupId),
-                    maximum = invokeGroupInt(manager, "getGroupMaxVolume", groupId),
+                    volume = manager.getGroupVolume(groupId),
+                    minimum = manager.getGroupMinVolume(groupId),
+                    maximum = manager.getGroupMaxVolume(groupId),
                 )
             }.onSuccess { mutableState.value = it }
                 .onFailure { error ->
@@ -245,10 +229,6 @@ class AudioController(
         }
         refreshStreamVolume()
     }
-
-    private fun invokeGroupInt(manager: Any, methodName: String, groupId: Int): Int =
-        manager.javaClass.getMethod(methodName, Int::class.javaPrimitiveType)
-            .invoke(manager, groupId) as Int
 
     private fun refreshStreamVolume() {
         val manager = audioManager
@@ -286,10 +266,7 @@ class AudioController(
         val callback = carVolumeCallback
         if (unregisterCallback && manager != null && callback != null) {
             runCatching {
-                manager.javaClass.getMethod(
-                    "unregisterCarVolumeGroupEventCallback",
-                    callback.javaClass.interfaces.first(),
-                ).invoke(manager, callback)
+                manager.unregisterCarVolumeGroupEventCallback(callback)
             }.onFailure {
                 Log.w(TAG, "event=callback_unregister_failed feature=audio", it)
             }
@@ -311,10 +288,6 @@ class AudioController(
 
     private companion object {
         const val TAG = "MiniIviCarAudio"
-        const val CAR_CLASS = "android.car.Car"
-        const val AUDIO_SERVICE = "audio"
-        const val CAR_VOLUME_GROUP_EVENT_CALLBACK =
-            "android.car.media.CarVolumeGroupEventCallback"
         const val DEFAULT_MEDIA_GROUP = 0
         const val POLL_INTERVAL_MILLIS = 1_000L
         const val CAR_RECONNECT_INTERVAL_TICKS = 30

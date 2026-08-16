@@ -17,6 +17,7 @@ import com.miniivi.car.api.CarServiceError
 import com.miniivi.car.api.FeatureStatus
 import com.miniivi.car.api.QuickControl
 import com.miniivi.car.api.QuickControlsState
+import com.miniivi.car.service.framework.FrameworkPlatformApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,9 +51,6 @@ class QuickControlsController(
         null
     }
     private val powerManager = applicationContext.getSystemService(PowerManager::class.java)
-    private val goToSleepMethod = powerManager?.javaClass?.methods?.firstOrNull {
-        it.name == "goToSleep" && it.parameterTypes.contentEquals(arrayOf(Long::class.javaPrimitiveType))
-    }
     private var receiverRegistered = false
     private var networkCallbackRegistered = false
 
@@ -169,12 +167,11 @@ class QuickControlsController(
 
     fun requestScreenOff() {
         val manager = powerManager
-        val method = goToSleepMethod
-        if (manager == null || method == null) {
+        if (manager == null) {
             Log.w(TAG, "event=command_rejected command=request_screen_off reason=unsupported")
             return
         }
-        runCatching { method.invoke(manager, SystemClock.uptimeMillis()) }
+        runCatching { FrameworkPlatformApi.goToSleep(manager, SystemClock.uptimeMillis()) }
             .onSuccess { logDebug("event=command_applied command=request_screen_off") }
             .onFailure { publishFailure("Unable to turn the display off", it) }
     }
@@ -298,7 +295,7 @@ class QuickControlsController(
         if (wifiManager != null) result = result or QuickControl.WIFI_CAPABILITY
         if (bluetoothController.state.value.supported) result = result or QuickControl.BLUETOOTH_CAPABILITY
         if (tetheringManager != null) result = result or QuickControl.HOTSPOT_CAPABILITY
-        if (goToSleepMethod != null) result = result or QuickControl.SCREEN_OFF_CAPABILITY
+        if (powerManager != null) result = result or QuickControl.SCREEN_OFF_CAPABILITY
         return result
     }
 

@@ -214,13 +214,11 @@ class BrightnessController(
     private fun registerDisplayListener() {
         val manager = displayManager ?: return
         val registeredWithBrightnessSignal = runCatching {
-            val method = DisplayManager::class.java.getMethod(
-                "registerDisplayListener",
-                DisplayManager.DisplayListener::class.java,
-                Handler::class.java,
-                Long::class.javaPrimitiveType,
+            manager.registerDisplayListener(
+                applicationContext.mainExecutor,
+                DisplayManager.EVENT_TYPE_DISPLAY_BRIGHTNESS,
+                displayListener,
             )
-            method.invoke(manager, displayListener, mainHandler, EVENT_TYPE_DISPLAY_BRIGHTNESS)
         }.isSuccess
         if (!registeredWithBrightnessSignal) {
             runCatching { manager.registerDisplayListener(displayListener, mainHandler) }
@@ -228,11 +226,14 @@ class BrightnessController(
     }
 
     private fun readDisplayBrightnessProgress(): Float? {
-        val brightness = runCatching {
-            displayManager?.let { FrameworkPlatformApi.getBrightness(it, Display.DEFAULT_DISPLAY) }
+        val percentage = runCatching {
+            displayManager?.getBrightness(
+                Display.DEFAULT_DISPLAY,
+                DisplayManager.BRIGHTNESS_UNIT_PERCENTAGE,
+            )
         }.getOrNull() ?: return null
-        return brightness.takeIf(Float::isFinite)?.let {
-            BrightnessPolicy.linearToProgress(it, DISPLAY_MINIMUM, DISPLAY_MAXIMUM)
+        return percentage.takeIf(Float::isFinite)?.let {
+            BrightnessPolicy.linearToProgress(it / PERCENTAGE_MAXIMUM, DISPLAY_MINIMUM, DISPLAY_MAXIMUM)
         }
     }
 
@@ -248,22 +249,29 @@ class BrightnessController(
 
     private fun setDisplayBrightness(progress: Float): Boolean {
         val manager = displayManager ?: return false
-        val linear = BrightnessPolicy.progressToLinear(
+        val percentage = BrightnessPolicy.progressToLinear(
             progress,
             DISPLAY_MINIMUM,
             DISPLAY_MAXIMUM,
-        )
+        ) * PERCENTAGE_MAXIMUM
         return runCatching {
-            FrameworkPlatformApi.setBrightness(manager, Display.DEFAULT_DISPLAY, linear)
+            manager.setBrightness(
+                Display.DEFAULT_DISPLAY,
+                percentage,
+                DisplayManager.BRIGHTNESS_UNIT_PERCENTAGE,
+            )
         }.isSuccess
     }
 
     private fun settingRange(): Pair<Int, Int> {
-        fun invoke(name: String, fallback: Int): Int = runCatching {
-            PowerManager::class.java.getMethod(name).invoke(powerManager) as Int
-        }.getOrDefault(fallback)
-        val minimum = invoke("getMinimumScreenBrightnessSetting", FALLBACK_MINIMUM)
-        val maximum = invoke("getMaximumScreenBrightnessSetting", FALLBACK_MAXIMUM)
+        val minimum = runCatching {
+            powerManager?.let(FrameworkPlatformApi::getMinimumScreenBrightnessSetting)
+        }
+            .getOrNull() ?: FALLBACK_MINIMUM
+        val maximum = runCatching {
+            powerManager?.let(FrameworkPlatformApi::getMaximumScreenBrightnessSetting)
+        }
+            .getOrNull() ?: FALLBACK_MAXIMUM
         return minimum.coerceAtMost(maximum) to maximum.coerceAtLeast(minimum)
     }
 
@@ -289,7 +297,7 @@ class BrightnessController(
         const val FALLBACK_MAXIMUM = 255
         const val DISPLAY_MINIMUM = 0f
         const val DISPLAY_MAXIMUM = 1f
-        const val EVENT_TYPE_DISPLAY_BRIGHTNESS = 1L shl 5
+        const val PERCENTAGE_MAXIMUM = 100f
         const val ACTION_USER_SWITCHED = "android.intent.action.USER_SWITCHED"
     }
 }
