@@ -29,7 +29,10 @@ import kotlinx.coroutines.launch
 enum class NavigationDestination {
     HOME,
     APP_LIST,
-    OTHER,
+    PHONE,
+    SETTINGS,
+    CONTROL_CENTER,
+    NONE,
 }
 
 data class SystemUiState(
@@ -55,49 +58,75 @@ class SystemUiViewModel(
     private val navigationRepository: NavigationRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SystemUiState())
+    private var destinationBeforeControlCenter = NavigationDestination.HOME
     val state = mutableState.asStateFlow()
 
     fun toggleControlCenter() {
-        val visible = !mutableState.value.controlCenterVisible
-        mutableState.value = mutableState.value.copy(controlCenterVisible = visible)
+        val current = mutableState.value
+        if (current.controlCenterVisible) {
+            mutableState.value = current.copy(
+                controlCenterVisible = false,
+                selectedDestination = destinationBeforeControlCenter,
+            )
+        } else {
+            destinationBeforeControlCenter = current.selectedDestination
+            mutableState.value = current.copy(
+                controlCenterVisible = true,
+                selectedDestination = NavigationDestination.CONTROL_CENTER,
+            )
+        }
     }
 
     fun dismissControlCenter() {
-        mutableState.value = mutableState.value.copy(controlCenterVisible = false)
+        if (!mutableState.value.controlCenterVisible) return
+        mutableState.value = mutableState.value.copy(
+            controlCenterVisible = false,
+            selectedDestination = destinationBeforeControlCenter,
+        )
     }
 
     fun goHome() {
-        dismissControlCenter()
-        mutableState.value = mutableState.value.copy(
-            selectedDestination = NavigationDestination.HOME,
-        )
+        selectDestination(NavigationDestination.HOME)
         navigationRepository.goHome()
     }
 
     fun openSettings() {
-        dismissControlCenter()
-        mutableState.value = mutableState.value.copy(
-            selectedDestination = NavigationDestination.OTHER,
-        )
+        selectDestination(NavigationDestination.SETTINGS)
         navigationRepository.openSettings()
     }
 
     fun openAppList() {
-        dismissControlCenter()
-        mutableState.value = mutableState.value.copy(
-            selectedDestination = NavigationDestination.APP_LIST,
-        )
+        selectDestination(NavigationDestination.APP_LIST)
         navigationRepository.openAppList()
     }
 
     fun openPhone() {
-        dismissControlCenter()
-        mutableState.value = mutableState.value.copy(
-            selectedDestination = NavigationDestination.OTHER,
-        )
+        selectDestination(NavigationDestination.PHONE)
         navigationRepository.openPhone()
     }
 
+    fun onExternalAppOpened() = selectDestination(NavigationDestination.NONE)
+
+    fun onLauncherDestinationChanged(destination: NavigationDestination) {
+        require(
+            destination == NavigationDestination.HOME ||
+                destination == NavigationDestination.APP_LIST ||
+                destination == NavigationDestination.NONE,
+        ) {
+            "Unsupported launcher destination: $destination"
+        }
+        selectDestination(destination)
+    }
+
+    private fun selectDestination(destination: NavigationDestination) {
+        if (destination != NavigationDestination.CONTROL_CENTER) {
+            destinationBeforeControlCenter = destination
+        }
+        mutableState.value = mutableState.value.copy(
+            controlCenterVisible = false,
+            selectedDestination = destination,
+        )
+    }
 }
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)

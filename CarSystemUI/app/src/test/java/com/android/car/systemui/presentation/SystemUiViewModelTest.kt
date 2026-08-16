@@ -55,15 +55,41 @@ class SystemUiViewModelTest {
         viewModel.toggleControlCenter()
         viewModel.openSettings()
         assertFalse(viewModel.state.value.controlCenterVisible)
-        assertEquals(NavigationDestination.OTHER, viewModel.state.value.selectedDestination)
+        assertEquals(NavigationDestination.SETTINGS, viewModel.state.value.selectedDestination)
         viewModel.toggleControlCenter()
         viewModel.openAppList()
         assertFalse(viewModel.state.value.controlCenterVisible)
         assertEquals(NavigationDestination.APP_LIST, viewModel.state.value.selectedDestination)
         viewModel.openPhone()
         assertFalse(viewModel.state.value.controlCenterVisible)
-        assertEquals(NavigationDestination.OTHER, viewModel.state.value.selectedDestination)
+        assertEquals(NavigationDestination.PHONE, viewModel.state.value.selectedDestination)
         assertEquals(listOf("home", "settings", "apps", "phone"), repository.actions)
+    }
+
+    @Test
+    fun navigationSelectionIsExclusiveAndRestoresAfterControlCenterDismissal() {
+        val viewModel = SystemUiViewModel(FakeNavigationRepository())
+
+        viewModel.openAppList()
+        assertEquals(NavigationDestination.APP_LIST, viewModel.state.value.selectedDestination)
+
+        viewModel.toggleControlCenter()
+        assertTrue(viewModel.state.value.controlCenterVisible)
+        assertEquals(
+            NavigationDestination.CONTROL_CENTER,
+            viewModel.state.value.selectedDestination,
+        )
+
+        viewModel.dismissControlCenter()
+        assertFalse(viewModel.state.value.controlCenterVisible)
+        assertEquals(NavigationDestination.APP_LIST, viewModel.state.value.selectedDestination)
+
+        viewModel.onExternalAppOpened()
+        assertFalse(viewModel.state.value.controlCenterVisible)
+        assertEquals(NavigationDestination.NONE, viewModel.state.value.selectedDestination)
+
+        viewModel.onLauncherDestinationChanged(NavigationDestination.HOME)
+        assertEquals(NavigationDestination.HOME, viewModel.state.value.selectedDestination)
     }
 
     @Test

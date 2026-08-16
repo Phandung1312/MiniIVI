@@ -10,6 +10,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.getValue
@@ -165,6 +167,47 @@ class SystemUiComposeTest {
         composeRule.onNodeWithContentDescription("Audio muted")
             .assertIsDisplayed()
             .assertHasNoClickAction()
+        composeRule.onNodeWithTag("navigation_home").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_apps").assertIsSelected()
+        composeRule.onNodeWithTag("navigation_call").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_vehicle_controls").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_settings").assertIsNotSelected()
+    }
+
+    @Test
+    fun navigationRailHasAtMostOneSelectedButton() {
+        var selectedDestination by mutableStateOf(NavigationDestination.NONE)
+        var controlCenterVisible by mutableStateOf(false)
+        composeRule.setContent {
+            CarSystemUiTheme {
+                NavigationRailScreen(
+                    controlCenterVisible = controlCenterVisible,
+                    selectedDestination = selectedDestination,
+                    onHome = {},
+                    onAppList = {},
+                    onPhone = {},
+                    onControlCenter = {},
+                    onSettings = {},
+                    modifier = Modifier.size(135.2.dp, 720.dp),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("navigation_home").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_apps").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_call").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_vehicle_controls").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_settings").assertIsNotSelected()
+
+        selectedDestination = NavigationDestination.CONTROL_CENTER
+        controlCenterVisible = true
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("navigation_home").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_apps").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_call").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_vehicle_controls").assertIsSelected()
+        composeRule.onNodeWithTag("navigation_settings").assertIsNotSelected()
     }
 
     @Test

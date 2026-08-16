@@ -3,6 +3,8 @@ package com.android.car.launcher.feature.dashboard
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
+import android.os.Process
+import android.os.UserHandle
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
@@ -20,6 +22,7 @@ import com.android.car.launcher.core.navigation.navigateTo
 import com.android.car.launcher.core.ui.MiniIviTheme
 import com.android.car.launcher.feature.dashboard.ui.HomeScreen
 import com.android.car.launcher.feature.maps.MapLaunchResolver
+import com.miniivi.car.api.NavigationStateContract
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -36,13 +39,13 @@ class HomeActivity : ComponentActivity() {
             MiniIviTheme {
                 val state by viewModel.state.collectAsState()
                 BackHandler(enabled = destination == HomeDestination.Apps) {
-                    destination = HomeDestination.Home
+                    showHome()
                 }
                 HomeScreen(
                     destination = destination,
                     state = state,
                     apps = HomeAppCatalog.apps,
-                    onBackToHome = { destination = HomeDestination.Home },
+                    onBackToHome = ::showHome,
                     onAppClick = ::openApp,
                     onPlayPause = viewModel::onPlayPause,
                     onNext = viewModel::onNext,
@@ -56,12 +59,14 @@ class HomeActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         destination = HomeStartDestination.from(intent)
+        reportCurrentDestination()
         logDebug("event=destination_selected destination=${destination.name.lowercase()} source=new_intent")
     }
 
     override fun onResume() {
         super.onResume()
         logDebug("event=activity_resumed component=HomeActivity")
+        reportCurrentDestination()
         viewModel.refresh()
     }
 
@@ -73,8 +78,14 @@ class HomeActivity : ComponentActivity() {
     private fun openApp(app: HomeApp) {
         logDebug("event=app_launch_requested app_id=${app.id}")
         when (val target = app.target) {
-            HomeAppTarget.Media -> navigateTo(AppDestination.Media)
-            HomeAppTarget.Bluetooth -> navigateTo(AppDestination.Bluetooth)
+            HomeAppTarget.Media -> {
+                navigateTo(AppDestination.Media)
+                reportExternalAppOpened()
+            }
+            HomeAppTarget.Bluetooth -> {
+                navigateTo(AppDestination.Bluetooth)
+                reportExternalAppOpened()
+            }
             HomeAppTarget.Maps -> {
                 if (!launch(MapLaunchResolver.resolve())) showAppUnavailable()
             }
@@ -110,6 +121,7 @@ class HomeActivity : ComponentActivity() {
 
     private fun launch(intent: Intent): Boolean = try {
         startActivity(intent)
+        reportExternalAppOpened()
         Log.i(
             TAG,
             "event=app_launch_completed target=${intent.component ?: intent.action ?: "unknown"}",
@@ -125,6 +137,31 @@ class HomeActivity : ComponentActivity() {
         false
     }
 
+    private fun showHome() {
+        destination = HomeDestination.Home
+        reportCurrentDestination()
+    }
+
+    private fun reportCurrentDestination() {
+        val destinationValue = when (destination) {
+            HomeDestination.Home -> NavigationStateContract.DESTINATION_HOME
+            HomeDestination.Apps -> NavigationStateContract.DESTINATION_APP_LIST
+        }
+        sendNavigationState(destinationValue)
+    }
+
+    private fun reportExternalAppOpened() {
+        sendNavigationState(NavigationStateContract.DESTINATION_NONE)
+    }
+
+    private fun sendNavigationState(destination: String) {
+        val intent = Intent(NavigationStateContract.ACTION_DESTINATION_CHANGED)
+            .setPackage(SYSTEM_UI_PACKAGE)
+            .putExtra(NavigationStateContract.EXTRA_DESTINATION, destination)
+        sendBroadcastAsUser(intent, UserHandle.getUserHandleForUid(Process.SYSTEM_UID))
+        logDebug("event=navigation_state_reported destination=$destination")
+    }
+
     private fun showAppUnavailable() {
         Log.w(TAG, "event=app_unavailable")
         Toast.makeText(this, R.string.app_not_available, Toast.LENGTH_SHORT).show()
@@ -136,6 +173,7 @@ class HomeActivity : ComponentActivity() {
 
     private companion object {
         const val TAG = "MiniIviLauncher"
+        const val SYSTEM_UI_PACKAGE = "com.android.car.systemui"
     }
 
 }

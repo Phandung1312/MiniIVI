@@ -1,11 +1,15 @@
 package com.android.car.systemui.navigation
 
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.os.Handler
 import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
@@ -39,7 +43,9 @@ import com.android.car.systemui.presentation.CarSystemUiTheme
 import com.android.car.systemui.presentation.NavigationRailScreen
 import com.android.car.systemui.presentation.ControlCenterOverlay
 import com.android.car.systemui.presentation.ControlCenterViewModel
+import com.android.car.systemui.presentation.NavigationDestination
 import com.android.car.systemui.presentation.SystemUiViewModel
+import com.miniivi.car.api.NavigationStateContract
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -59,6 +65,21 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
     private var overlayLayoutParams: WindowManager.LayoutParams? = null
     private var overlayAnimationVisible by mutableStateOf(false)
     private var overlayRemovalJob: Job? = null
+    private val navigationStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action != NavigationStateContract.ACTION_DESTINATION_CHANGED) return
+            val destination = intent.getStringExtra(NavigationStateContract.EXTRA_DESTINATION)
+            logDebug("event=launcher_destination_received destination=${destination ?: "unknown"}")
+            when (destination) {
+                NavigationStateContract.DESTINATION_HOME ->
+                    systemUiViewModel.onLauncherDestinationChanged(NavigationDestination.HOME)
+                NavigationStateContract.DESTINATION_APP_LIST ->
+                    systemUiViewModel.onLauncherDestinationChanged(NavigationDestination.APP_LIST)
+                NavigationStateContract.DESTINATION_NONE ->
+                    systemUiViewModel.onExternalAppOpened()
+            }
+        }
+    }
 
     override fun onCreate() {
         savedStateRegistryController.performAttach()
@@ -69,6 +90,24 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
         val provider = ViewModelProvider(this, SystemUiDependencies.from(this).viewModelFactory)
         systemUiViewModel = provider[SystemUiViewModel::class.java]
         controlCenterViewModel = provider[ControlCenterViewModel::class.java]
+        val navigationStateFilter = IntentFilter(NavigationStateContract.ACTION_DESTINATION_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(
+                navigationStateReceiver,
+                navigationStateFilter,
+                CROSS_USER_PERMISSION,
+                Handler(mainLooper),
+                Context.RECEIVER_EXPORTED,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(
+                navigationStateReceiver,
+                navigationStateFilter,
+                CROSS_USER_PERMISSION,
+                Handler(mainLooper),
+            )
+        }
         showNavigationBar()
         observeOverlayState()
     }
@@ -295,6 +334,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
     override fun onDestroy() {
         Log.i(TAG, "event=service_destroying feature=system_ui_navigation")
         overlayRemovalJob?.cancel()
+        runCatching { unregisterReceiver(navigationStateReceiver) }
         overlayView?.let { runCatching { windowManager.removeViewImmediate(it) } }
         navigationView?.let { runCatching { windowManager.removeViewImmediate(it) } }
         overlayView = null
@@ -310,6 +350,7 @@ class BottomNavigationService : LifecycleService(), ViewModelStoreOwner, SavedSt
 
     private companion object {
         const val TAG = "MiniIviSystemUi"
+        const val CROSS_USER_PERMISSION = "android.permission.INTERACT_ACROSS_USERS_FULL"
         const val TYPE_NAVIGATION_BAR_PANEL = 2024
         const val OVERLAY_EXIT_DURATION_MS = 220L
     }

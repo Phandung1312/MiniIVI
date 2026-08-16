@@ -69,6 +69,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.font.FontWeight
@@ -148,6 +149,7 @@ fun NavigationRailScreen(
                     Icons.Rounded.Phone,
                     R.string.navigation_call,
                     buttonSize,
+                    selected = selectedDestination == NavigationDestination.PHONE,
                     tag = "navigation_call",
                     onClick = onPhone,
                 )
@@ -155,7 +157,7 @@ fun NavigationRailScreen(
                     MiniIviNavigationIcons.VehicleFront,
                     R.string.navigation_control_center,
                     buttonSize,
-                    selected = controlCenterVisible,
+                    selected = selectedDestination == NavigationDestination.CONTROL_CENTER,
                     tag = "navigation_vehicle_controls",
                     onClick = onControlCenter,
                 )
@@ -163,6 +165,7 @@ fun NavigationRailScreen(
                     Icons.Rounded.Settings,
                     R.string.navigation_settings,
                     buttonSize,
+                    selected = selectedDestination == NavigationDestination.SETTINGS,
                     tag = "navigation_settings",
                     onClick = onSettings,
                 )
@@ -211,7 +214,8 @@ private fun NavigationButton(
     Surface(
         modifier = Modifier
             .size(size)
-            .testTag(tag),
+            .testTag(tag)
+            .semantics { this.selected = selected },
         shape = shape,
         color = background,
         onClick = onClick,
