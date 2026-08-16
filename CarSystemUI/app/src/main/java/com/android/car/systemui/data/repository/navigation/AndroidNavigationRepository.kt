@@ -142,7 +142,8 @@ class AndroidNavigationRepository @Inject constructor(
         const val INJECT_INPUT_EVENT_MODE_ASYNC = 0
         const val CAR_SETTINGS_PACKAGE = "com.android.car.settings"
         const val CAR_LAUNCHER_PACKAGE = "com.android.car.launcher"
-        const val APP_LIST_ACTIVITY = "com.android.car.launcher.feature.dashboard.HomeActivity"
+        const val APP_LIST_ACTIVITY =
+            "com.android.car.launcher.feature.dashboard.presentation.HomeActivity"
         const val START_DESTINATION_EXTRA = "com.android.car.launcher.extra.START_DESTINATION"
         const val APPS_DESTINATION = "apps"
         const val CAMERA_ACTION = "com.miniivi.car.action.OPEN_CAMERA_VIEW"
