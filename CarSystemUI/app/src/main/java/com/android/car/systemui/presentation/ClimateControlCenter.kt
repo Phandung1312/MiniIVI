@@ -75,6 +75,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -371,7 +372,7 @@ private fun TemperatureDeck(
                     onClick = onIncrease,
                 )
             }
-            val directions = zone.availableFanDirections.take(3)
+            val directions = ClimateFanDirection.STANDARD_OPTIONS
             Column(verticalArrangement = Arrangement.spacedBy(if (compact) 5.dp else 10.dp)) {
                 directions.forEach { direction ->
                     B02ControlTile(
@@ -765,6 +766,7 @@ private fun B02Surface(
     onLongClick: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
+    val tileSelected = selected
     val shape = RoundedCornerShape(13.dp)
     Box(
         modifier
@@ -773,7 +775,10 @@ private fun B02Surface(
             .background(B02MetalBrush)
             .border(1.dp, if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(0.22f), shape)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .semantics { contentDescription = label },
+            .semantics {
+                contentDescription = label
+                this.selected = tileSelected
+            },
     ) {
         Canvas(Modifier.fillMaxSize()) {
             var y = -size.width

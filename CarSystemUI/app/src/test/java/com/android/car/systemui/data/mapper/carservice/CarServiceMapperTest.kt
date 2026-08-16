@@ -113,7 +113,7 @@ class CarServiceMapperTest {
 
         assertEquals(ClimateFanDirection.DEFROST, state.climate.driverZone.fanDirection)
         assertEquals(
-            listOf(ClimateFanDirection.FEET, ClimateFanDirection.FACE),
+            listOf(ClimateFanDirection.FEET),
             state.climate.driverZone.availableFanDirections,
         )
         assertEquals(TemperatureUnit.FAHRENHEIT, state.climate.temperatureUnit)
@@ -124,6 +124,32 @@ class CarServiceMapperTest {
         assertEquals(setOf(QuickControl.WIFI, QuickControl.HOTSPOT), state.quickControls.capabilities)
         assertTrue(state.quickControls.screenOffAvailable)
         assertFalse(QuickControl.VALET_MODE in state.quickControls.capabilities)
+    }
+
+    @Test
+    fun unknownAndDuplicateFanDirectionsDoNotCreateDuplicateDomainOptions() {
+        val climate = ApiClimateControlState(
+            status = FeatureStatus.READY,
+            available = true,
+            driverZone = ApiClimateZoneControlState(
+                zone = HvacZone.LEFT,
+                fanDirection = ApiClimateFanDirection.FACE_AND_FEET,
+                availableFanDirections = intArrayOf(
+                    ApiClimateFanDirection.FACE,
+                    99,
+                    ApiClimateFanDirection.FACE,
+                    ApiClimateFanDirection.FACE_AND_FEET,
+                ),
+            ),
+        )
+
+        val state = toDomain(climate, ApiQuickControlsState())
+
+        assertEquals(ClimateFanDirection.FACE_AND_FEET, state.climate.driverZone.fanDirection)
+        assertEquals(
+            listOf(ClimateFanDirection.FACE, ClimateFanDirection.FACE_AND_FEET),
+            state.climate.driverZone.availableFanDirections,
+        )
     }
 
     @Test
