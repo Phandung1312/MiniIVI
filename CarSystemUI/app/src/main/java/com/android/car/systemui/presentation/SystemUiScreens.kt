@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,9 +32,14 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BrightnessHigh
+import androidx.compose.material.icons.rounded.Bluetooth
+import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.WifiOff
+import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,13 +60,16 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.text.font.FontWeight
@@ -68,9 +77,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.android.car.systemui.R
-import com.android.car.systemui.data.model.ClimateZone
-import com.android.car.systemui.data.model.HvacState
-import com.android.car.systemui.data.model.TemperatureZone
+import com.android.car.systemui.domain.model.AudioState
+import com.android.car.systemui.domain.model.ClimateZone
+import com.android.car.systemui.domain.model.HvacState
+import com.android.car.systemui.domain.model.QuickControl
+import com.android.car.systemui.domain.model.QuickControlsState
+import com.android.car.systemui.domain.model.TemperatureZone
+import com.android.car.systemui.presentation.model.ControlCenterUiState
+import com.android.car.systemui.presentation.model.NavigationDestination
 import java.util.Locale
 
 @Composable
@@ -80,6 +94,10 @@ fun NavigationRailScreen(
     onAppList: () -> Unit,
     onControlCenter: () -> Unit,
     onSettings: () -> Unit,
+    selectedDestination: NavigationDestination = NavigationDestination.HOME,
+    quickControls: QuickControlsState = QuickControlsState(),
+    audio: AudioState = AudioState(),
+    onPhone: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -108,29 +126,54 @@ fun NavigationRailScreen(
             ) {
                 NavigationBrandMark(buttonSize)
                 NavigationButton(
-                    MiniIviNavigationIcons.Home,
-                    R.string.navigation_home,
-                    buttonSize,
+                    icon = null,
+                    iconPainter = painterResource(R.drawable.ic_navigation_home),
+                    description = R.string.navigation_home,
+                    size = buttonSize,
+                    selected = selectedDestination == NavigationDestination.HOME,
+                    tag = "navigation_home",
                     onClick = onHome,
                 )
                 NavigationButton(
-                    MiniIviNavigationIcons.Apps,
-                    R.string.navigation_app_list,
-                    buttonSize,
+                    icon = null,
+                    iconPainter = painterResource(R.drawable.ic_navigation_apps),
+                    description = R.string.navigation_app_list,
+                    size = buttonSize,
+                    selected = selectedDestination == NavigationDestination.APP_LIST,
+                    tag = "navigation_apps",
                     onClick = onAppList,
                 )
-                Spacer(Modifier.weight(1f))
+                StatusPanel(
+                    state = quickControls,
+                    audio = audio,
+                    buttonSize = buttonSize,
+                    modifier = Modifier.width(buttonSize).weight(1f),
+                )
                 NavigationButton(
-                    MiniIviNavigationIcons.ControlCenter,
-                    R.string.navigation_control_center,
-                    buttonSize,
-                    selected = controlCenterVisible,
+                    icon = null,
+                    iconPainter = painterResource(R.drawable.ic_navigation_phone),
+                    description = R.string.navigation_call,
+                    size = buttonSize,
+                    selected = selectedDestination == NavigationDestination.PHONE,
+                    tag = "navigation_call",
+                    onClick = onPhone,
+                )
+                NavigationButton(
+                    icon = null,
+                    iconPainter = painterResource(R.drawable.ic_vehicle_front_simplified),
+                    description = R.string.navigation_control_center,
+                    size = buttonSize,
+                    selected = selectedDestination == NavigationDestination.CONTROL_CENTER,
+                    tag = "navigation_vehicle_controls",
                     onClick = onControlCenter,
                 )
                 NavigationButton(
-                    Icons.Rounded.Settings,
-                    R.string.navigation_settings,
-                    buttonSize,
+                    icon = null,
+                    iconPainter = painterResource(R.drawable.ic_navigation_settings),
+                    description = R.string.navigation_settings,
+                    size = buttonSize,
+                    selected = selectedDestination == NavigationDestination.SETTINGS,
+                    tag = "navigation_settings",
                     onClick = onSettings,
                 )
             }
@@ -165,27 +208,168 @@ private fun NavigationBrandMark(size: Dp) {
 
 @Composable
 private fun NavigationButton(
-    icon: ImageVector,
+    icon: ImageVector?,
     description: Int,
     size: Dp,
     selected: Boolean = false,
+    tag: String,
     onClick: () -> Unit,
+    iconPainter: Painter? = null,
 ) {
-    val background = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    val shape = RoundedCornerShape(22.dp)
+    val background = if (selected) MaterialTheme.colorScheme.primary
     else SystemUiGlassSurface.copy(alpha = 0.34f)
     Surface(
-        modifier = Modifier.size(size),
-        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier
+            .size(size)
+            .testTag(tag)
+            .semantics { this.selected = selected },
+        shape = shape,
         color = background,
         onClick = onClick,
     ) {
         Box(contentAlignment = Alignment.Center) {
+            val tint = if (selected) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurface
+            val iconModifier = Modifier.size(size * 0.48f)
+            when {
+                iconPainter != null -> Icon(
+                    painter = iconPainter,
+                    contentDescription = stringResource(description),
+                    tint = tint,
+                    modifier = iconModifier,
+                )
+                icon != null -> Icon(
+                    imageVector = icon,
+                    contentDescription = stringResource(description),
+                    tint = tint,
+                    modifier = iconModifier,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusPanel(
+    state: QuickControlsState,
+    audio: AudioState,
+    buttonSize: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val wifiAvailable = state.available && QuickControl.WIFI in state.capabilities
+    val bluetoothAvailable = state.available && QuickControl.BLUETOOTH in state.capabilities
+    val showMute = audio.available && audio.volume == 0
+    BoxWithConstraints(
+        modifier = modifier
+            .width(buttonSize)
+            .testTag("navigation_status_panel"),
+    ) {
+        val dense = maxHeight < 110.dp
+        SystemUiGlassPanel(
+            modifier = Modifier.fillMaxSize(),
+            shape = RoundedCornerShape(22.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = if (dense) 5.dp else 8.dp, vertical = if (dense) 4.dp else 10.dp),
+                verticalArrangement = Arrangement.spacedBy(if (dense) 3.dp else 8.dp),
+            ) {
+                StatusPanelItem(
+                    icon = if (state.wifiEnabled) Icons.Rounded.Wifi else Icons.Rounded.WifiOff,
+                    label = stringResource(R.string.navigation_wifi),
+                    enabled = state.wifiEnabled,
+                    connected = state.wifiConnected,
+                    available = wifiAvailable,
+                    dense = dense,
+                    tag = "navigation_wifi",
+                    modifier = Modifier.weight(1f),
+                )
+                StatusPanelItem(
+                    icon = if (state.bluetoothEnabled) Icons.Rounded.Bluetooth else Icons.Rounded.BluetoothDisabled,
+                    label = stringResource(R.string.navigation_bluetooth),
+                    enabled = state.bluetoothEnabled,
+                    connected = state.bluetoothConnected,
+                    available = bluetoothAvailable,
+                    dense = dense,
+                    tag = "navigation_bluetooth",
+                    modifier = Modifier.weight(1f),
+                )
+                if (showMute) {
+                    StatusPanelItem(
+                        icon = Icons.Rounded.VolumeOff,
+                        label = stringResource(R.string.navigation_audio_muted),
+                        enabled = true,
+                        connected = false,
+                        available = true,
+                        dense = dense,
+                        tag = "navigation_audio_mute",
+                        disabledVisual = true,
+                        descriptionOverride = stringResource(R.string.navigation_audio_muted),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusPanelItem(
+    icon: ImageVector,
+    label: String,
+    enabled: Boolean,
+    connected: Boolean,
+    available: Boolean,
+    dense: Boolean,
+    tag: String,
+    disabledVisual: Boolean = false,
+    descriptionOverride: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    val status = when {
+        !available -> stringResource(R.string.navigation_unavailable)
+        !enabled -> stringResource(R.string.navigation_disabled)
+        connected -> stringResource(R.string.navigation_connected)
+        else -> stringResource(R.string.navigation_not_connected)
+    }
+    val description = descriptionOverride
+        ?: stringResource(R.string.navigation_connectivity_description, label, status)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(tag)
+            .semantics(mergeDescendants = true) { contentDescription = description },
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .semantics { contentDescription = description },
+            contentAlignment = Alignment.Center,
+        ) {
             Icon(
                 imageVector = icon,
-                contentDescription = stringResource(description),
-                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(size * 0.48f),
+                contentDescription = null,
+                tint = when {
+                    !available -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    !enabled || disabledVisual -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    else -> MaterialTheme.colorScheme.primary
+                },
+                modifier = Modifier.size(if (dense) 22.dp else 30.dp),
             )
+            if (connected && enabled && available) {
+                Box(
+                    modifier = Modifier
+                        .size(if (dense) 6.dp else 9.dp)
+                        .align(Alignment.Center)
+                        .offset(
+                            x = if (dense) 8.dp else 11.dp,
+                            y = if (dense) 8.dp else 11.dp,
+                        )
+                        .background(Color(0xFF7BE2A1), CircleShape),
+                )
+            }
         }
     }
 }

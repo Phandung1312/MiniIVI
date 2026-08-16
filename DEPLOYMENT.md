@@ -64,7 +64,7 @@ Build and test:
 
 ```powershell
 Push-Location .\CarSystemUI
-.\gradlew.bat :boot-brand:test :boot-animation:check :boot-animation:assemble :boot-progress-overlay:check :app:testDebugUnitTest :app:assembleDebug --console=plain --no-daemon
+.\gradlew.bat :boot-brand:test :boot-animation:check :boot-animation:assemble :boot-progress-overlay:check :app:testDebugUnitTest :app:compileDebugKotlin :app:assembleDebug --console=plain --no-daemon
 Pop-Location
 ```
 
@@ -93,7 +93,7 @@ adb push .\CarSystemUI\boot-progress-overlay\build\outputs\boot-progress-overlay
 adb shell "chmod 0644 /product/media/bootanimation.zip /product/media/bootanimation-dark.zip /product/overlay/MiniIviBootProgressOverlay.apk"
 ```
 
-After reboot, verify the package, overlay, navigation process, boot animation, brightness, volume, and HVAC controls:
+After reboot, verify the package, overlay, navigation process, boot animation, brightness, volume, and HVAC controls. The boot receiver starts `CarSystemUIService`; the Hilt `CarSystemUIApplication` initializes the feature components before the service callback. Do not use `adb install`; deploy the APK to the system partition as shown above.
 
 ```powershell
 adb shell pm path com.android.car.systemui

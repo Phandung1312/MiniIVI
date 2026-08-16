@@ -1,4 +1,4 @@
-package com.android.car.launcher.feature.media
+package com.android.car.launcher.feature.media.data.repository
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay

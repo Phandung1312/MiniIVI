@@ -4,7 +4,7 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 
 object CarServiceContract {
-    const val API_VERSION = 4
+    const val API_VERSION = 5
     const val MIN_COMPATIBLE_API_VERSION = 3
     const val SERVICE_PACKAGE = "com.miniivi.car.service"
     const val SERVICE_CLASS = "com.miniivi.car.service.MiniIviCarService"
@@ -188,7 +188,9 @@ data class QuickControlsState(
     val status: Int = FeatureStatus.CONNECTING,
     val available: Boolean = false,
     val wifiEnabled: Boolean = false,
+    val wifiConnected: Boolean = false,
     val bluetoothEnabled: Boolean = false,
+    val bluetoothConnected: Boolean = false,
     val hotspotEnabled: Boolean = false,
     val valetModeEnabled: Boolean = false,
     val realCapabilities: Long = 0L,

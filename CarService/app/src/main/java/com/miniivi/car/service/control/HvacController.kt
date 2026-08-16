@@ -1,6 +1,10 @@
 package com.miniivi.car.service.control
 
-import android.annotation.SuppressLint
+import android.car.Car
+import android.car.VehiclePropertyIds
+import android.car.hardware.CarPropertyConfig
+import android.car.hardware.CarPropertyValue
+import android.car.hardware.property.CarPropertyManager
 import android.content.Context
 import android.util.Log
 import com.miniivi.car.api.CarServiceError
@@ -14,9 +18,6 @@ import com.miniivi.car.api.HvacState
 import com.miniivi.car.api.HvacZone
 import com.miniivi.car.api.HvacZoneState
 import com.miniivi.car.api.TemperatureUnit
-import java.lang.reflect.Array
-import java.lang.reflect.Method
-import java.lang.reflect.Proxy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -60,7 +61,6 @@ internal object HvacPolicy {
     private const val SEAT_ROW_1_RIGHT = 0x4
 }
 
-@SuppressLint("PrivateApi")
 class HvacController(
     private val context: Context,
     private val scope: CoroutineScope,
@@ -81,15 +81,15 @@ class HvacController(
         onReady = { lifecycleCar -> scope.launch { onCarReady(lifecycleCar) } },
         onUnavailable = { scope.launch { onCarUnavailable() } },
     )
-    private var propertyManager: Any? = null
-    private var propertyCallback: Any? = null
+    private var propertyManager: CarPropertyManager? = null
+    private var propertyCallback: CarPropertyManager.CarPropertyEventCallback? = null
     private var leftBinding: ZoneBinding? = null
     private var rightBinding: ZoneBinding? = null
     private var cabinArea: Int? = null
     private var acArea: Int? = null
     private var driverArea: Int? = null
     private var passengerArea: Int? = null
-    private val extendedConfigs = mutableMapOf<Int, Any>()
+    private val extendedConfigs = mutableMapOf<Int, CarPropertyConfig<*>>()
     private var propertyEventErrorReported = false
 
     fun start() {
@@ -161,21 +161,11 @@ class HvacController(
                 target.state.maximumCelsius,
             )
             runCatching {
-                manager.javaClass.getMethod(
-                    "setFloatProperty",
-                    Int::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType,
-                    Float::class.javaPrimitiveType,
-                ).invoke(manager, HVAC_TEMPERATURE_SET, target.areaId, requested)
+                manager.setFloatProperty(HVAC_TEMPERATURE_SET, target.areaId, requested)
                 updateZoneTemperature(target.areaId, requested)
                 if (zone == HvacZone.LEFT && mutableClimateState.value.syncOn) {
                     rightBinding?.let { passenger ->
-                        manager.javaClass.getMethod(
-                            "setFloatProperty",
-                            Int::class.javaPrimitiveType,
-                            Int::class.javaPrimitiveType,
-                            Float::class.javaPrimitiveType,
-                        ).invoke(manager, HVAC_TEMPERATURE_SET, passenger.areaId, requested)
+                        manager.setFloatProperty(HVAC_TEMPERATURE_SET, passenger.areaId, requested)
                         updateZoneTemperature(passenger.areaId, requested)
                     }
                 }
@@ -200,12 +190,7 @@ class HvacController(
                 return@launch
             }
             runCatching {
-                manager.javaClass.getMethod(
-                    "setBooleanProperty",
-                    Int::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType,
-                    Boolean::class.javaPrimitiveType,
-                ).invoke(manager, HVAC_AC_ON, area, enabled)
+                manager.setBooleanProperty(HVAC_AC_ON, area, enabled)
                 mutableState.update {
                     it.copy(
                         status = FeatureStatus.READY,
@@ -377,7 +362,7 @@ class HvacController(
         }
     }
 
-    private fun onCarReady(lifecycleCar: Any) {
+    private fun onCarReady(lifecycleCar: Car) {
         if (!started || propertyManager != null) return
         runCatching { connectPropertyManager(lifecycleCar) }
             .onSuccess {
@@ -408,10 +393,8 @@ class HvacController(
         )
     }
 
-    private fun connectPropertyManager(lifecycleCar: Any) {
-        val carClass = Class.forName(CAR_CLASS)
-        propertyManager = carClass.getMethod("getCarManager", String::class.java)
-            .invoke(lifecycleCar, PROPERTY_SERVICE)
+    private fun connectPropertyManager(lifecycleCar: Car) {
+        propertyManager = lifecycleCar.getCarManager(CarPropertyManager::class.java)
             ?: error("Car property service is unavailable")
 
         val setConfig = getConfig(HVAC_TEMPERATURE_SET)
@@ -443,7 +426,11 @@ class HvacController(
         createAndRegisterCallback(currentConfig != null, acConfig != null)
     }
 
-    private fun createZoneBinding(zone: Int, areaId: Int, config: Any): ZoneBinding =
+    private fun createZoneBinding(
+        zone: Int,
+        areaId: Int,
+        config: CarPropertyConfig<*>,
+    ): ZoneBinding =
         ZoneBinding(
             areaId = areaId,
             state = HvacZoneState(
@@ -451,8 +438,8 @@ class HvacController(
                 available = true,
                 hasTemperature = true,
                 temperatureCelsius = readFloat(HVAC_TEMPERATURE_SET, areaId),
-                minimumCelsius = getBound(config, "getMinValue", areaId, DEFAULT_MINIMUM),
-                maximumCelsius = getBound(config, "getMaxValue", areaId, DEFAULT_MAXIMUM),
+                minimumCelsius = getMinValue(config, areaId, DEFAULT_MINIMUM),
+                maximumCelsius = getMaxValue(config, areaId, DEFAULT_MAXIMUM),
             ),
         )
 
@@ -480,58 +467,36 @@ class HvacController(
         ),
     )
 
-    private fun getConfig(propertyId: Int): Any? = propertyManager?.javaClass
-        ?.getMethod("getCarPropertyConfig", Int::class.javaPrimitiveType)
-        ?.invoke(propertyManager, propertyId)
+    private fun getConfig(propertyId: Int): CarPropertyConfig<*>? =
+        runCatching { propertyManager?.getCarPropertyConfig(propertyId) }.getOrNull()
 
-    private fun getAreaIds(config: Any): IntArray {
-        val areas = requireNotNull(config.javaClass.getMethod("getAreaIds").invoke(config))
-        return IntArray(Array.getLength(areas)) { index -> Array.get(areas, index) as Int }
-    }
+    private fun getAreaIds(config: CarPropertyConfig<*>): IntArray = config.areaIds
 
-    private fun getBound(config: Any, methodName: String, areaId: Int, fallback: Float): Float {
-        val methods = config.javaClass.methods.filter { it.name == methodName }
-        val value = runCatching {
-            val areaMethod = methods.firstOrNull { it.parameterTypes.size == 1 }
-            val noArgMethod = methods.firstOrNull { it.parameterTypes.isEmpty() }
-            when {
-                areaMethod != null -> areaMethod.invoke(config, areaId)
-                noArgMethod != null -> noArgMethod.invoke(config)
-                else -> null
-            }
-        }.getOrNull()
-        return (value as? Number)?.toFloat() ?: fallback
-    }
+    private fun getMinValue(config: CarPropertyConfig<*>, areaId: Int, fallback: Float): Float =
+        runCatching { (config.getMinValue(areaId) as Number).toFloat() }.getOrDefault(fallback)
+
+    private fun getMaxValue(config: CarPropertyConfig<*>, areaId: Int, fallback: Float): Float =
+        runCatching { (config.getMaxValue(areaId) as Number).toFloat() }.getOrDefault(fallback)
 
     private fun createAndRegisterCallback(hasCabin: Boolean, hasAc: Boolean) {
         val manager = checkNotNull(propertyManager)
-        val callbackClass = Class.forName(CAR_PROPERTY_CALLBACK)
-        propertyCallback = Proxy.newProxyInstance(
-            callbackClass.classLoader,
-            arrayOf(callbackClass),
-        ) { proxy, method, args ->
-            when (method.name) {
-                "onChangeEvent" -> args?.firstOrNull()?.let { value ->
-                    scope.launch { handlePropertyValue(value) }
-                }
-                "onErrorEvent" -> scope.launch {
+        propertyCallback = object : CarPropertyManager.CarPropertyEventCallback {
+            override fun onChangeEvent(value: CarPropertyValue<*>) {
+                scope.launch { handlePropertyValue(value) }
+            }
+
+            override fun onErrorEvent(propertyId: Int, areaId: Int) {
+                scope.launch {
                     publishUnavailable("An HVAC property reported an error")
                 }
-                "toString" -> "MiniIVI HVAC callback"
-                "hashCode" -> System.identityHashCode(proxy)
-                "equals" -> proxy === args?.firstOrNull()
-                else -> null
             }
         }
-        val register = manager.javaClass.getMethod(
-            "registerCallback",
-            callbackClass,
-            Int::class.javaPrimitiveType,
-            Float::class.javaPrimitiveType,
-        )
         fun registerProperty(propertyId: Int) {
-            val registered = register.invoke(manager, propertyCallback, propertyId, RATE_ONCHANGE)
-                as? Boolean ?: true
+            val registered = manager.registerCallback(
+                checkNotNull(propertyCallback),
+                propertyId,
+                RATE_ONCHANGE,
+            )
             check(registered) { "Unable to register HVAC property 0x${propertyId.toString(16)}" }
         }
         if (hasCabin) registerProperty(HVAC_TEMPERATURE_CURRENT)
@@ -542,19 +507,17 @@ class HvacController(
         }.forEach(::registerProperty)
     }
 
-    private fun handlePropertyValue(value: Any) {
+    private fun handlePropertyValue(value: CarPropertyValue<*>) {
         runCatching {
-            val status = runCatching {
-                value.javaClass.getMethod("getStatus").invoke(value) as Int
-            }.getOrDefault(STATUS_AVAILABLE)
+            val status = value.status
             if (status != STATUS_AVAILABLE) return
             if (propertyEventErrorReported) {
                 propertyEventErrorReported = false
                 Log.i(TAG, "event=property_recovered feature=hvac")
             }
-            val propertyId = value.javaClass.getMethod("getPropertyId").invoke(value) as Int
-            val areaId = value.javaClass.getMethod("getAreaId").invoke(value) as Int
-            val data = value.javaClass.getMethod("getValue").invoke(value)
+            val propertyId = value.propertyId
+            val areaId = value.areaId
+            val data = value.value
             when (propertyId) {
                 HVAC_TEMPERATURE_CURRENT -> if (areaId == cabinArea) {
                     mutableState.update {
@@ -602,19 +565,13 @@ class HvacController(
     }
 
     private fun readFloat(propertyId: Int, areaId: Int): Float =
-        (propertyManager?.javaClass
-            ?.getMethod("getFloatProperty", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
-            ?.invoke(propertyManager, propertyId, areaId) as Number).toFloat()
+        checkNotNull(propertyManager).getFloatProperty(propertyId, areaId)
 
     private fun readBoolean(propertyId: Int, areaId: Int): Boolean =
-        propertyManager?.javaClass
-            ?.getMethod("getBooleanProperty", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
-            ?.invoke(propertyManager, propertyId, areaId) as Boolean
+        checkNotNull(propertyManager).getBooleanProperty(propertyId, areaId)
 
     private fun readInt(propertyId: Int, areaId: Int): Int =
-        propertyManager?.javaClass
-            ?.getMethod("getIntProperty", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
-            ?.invoke(propertyManager, propertyId, areaId) as Int
+        checkNotNull(propertyManager).getIntProperty(propertyId, areaId)
 
     private fun setBooleanControl(
         propertyId: Int,
@@ -643,12 +600,7 @@ class HvacController(
                 return@launch
             }
             runCatching {
-                manager.javaClass.getMethod(
-                    "setBooleanProperty",
-                    Int::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType,
-                    Boolean::class.javaPrimitiveType,
-                ).invoke(manager, propertyId, area, enabled)
+                manager.setBooleanProperty(propertyId, area, enabled)
             }.onSuccess {
                 publishClimateState()
                 logDebug(
@@ -676,8 +628,8 @@ class HvacController(
             val manager = propertyManager
             val requested = if (config != null) {
                 value.coerceIn(
-                    getBound(config, "getMinValue", zoneArea(zone) ?: 0, 0f).toInt(),
-                    getBound(config, "getMaxValue", zoneArea(zone) ?: 0, 7f).toInt(),
+                    getMinValue(config, zoneArea(zone) ?: 0, 0f).toInt(),
+                    getMaxValue(config, zoneArea(zone) ?: 0, 7f).toInt(),
                 )
             } else value.coerceIn(0, 7)
             val area = config?.let { zoneArea(zone)?.takeIf { target -> target in getAreaIds(it) } }
@@ -691,12 +643,7 @@ class HvacController(
                 return@launch
             }
             runCatching {
-                manager.javaClass.getMethod(
-                    "setIntProperty",
-                    Int::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType,
-                ).invoke(manager, propertyId, area, requested)
+                manager.setIntProperty(propertyId, area, requested)
             }.onSuccess {
                 publishClimateState()
                 logDebug(
@@ -723,12 +670,7 @@ class HvacController(
                 return@launch
             }
             runCatching {
-                manager.javaClass.getMethod(
-                    "setIntProperty",
-                    Int::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType,
-                ).invoke(manager, propertyId, area, value)
+                manager.setIntProperty(propertyId, area, value)
             }.onSuccess {
                 publishClimateState()
                 logDebug(
@@ -816,8 +758,8 @@ class HvacController(
                 if (zone == HvacZone.LEFT) KEY_DRIVER_FAN else KEY_PASSENGER_FAN,
                 4,
             ),
-            minimumFanSpeed = fanConfig?.let { getBound(it, "getMinValue", area ?: 0, 0f).toInt() } ?: 0,
-            maximumFanSpeed = fanConfig?.let { getBound(it, "getMaxValue", area ?: 0, 7f).toInt() } ?: 7,
+            minimumFanSpeed = fanConfig?.let { getMinValue(it, area ?: 0, 0f).toInt() } ?: 0,
+            maximumFanSpeed = fanConfig?.let { getMaxValue(it, area ?: 0, 7f).toInt() } ?: 7,
             fanDirection = readZoneIntOrMock(
                 HVAC_FAN_DIRECTION,
                 area,
@@ -832,7 +774,7 @@ class HvacController(
                 0,
             ),
             maximumSeatHeatingLevel = heatConfig?.let {
-                getBound(it, "getMaxValue", area ?: 0, 3f).toInt().coerceAtLeast(0)
+                getMaxValue(it, area ?: 0, 3f).toInt().coerceAtLeast(0)
             } ?: 3,
             seatVentilationLevel = readZoneIntOrMock(
                 HVAC_SEAT_VENTILATION,
@@ -841,7 +783,7 @@ class HvacController(
                 0,
             ),
             maximumSeatVentilationLevel = ventConfig?.let {
-                getBound(it, "getMaxValue", area ?: 0, 3f).toInt().coerceAtLeast(0)
+                getMaxValue(it, area ?: 0, 3f).toInt().coerceAtLeast(0)
             } ?: 3,
         )
     }
@@ -850,17 +792,7 @@ class HvacController(
         val config = extendedConfigs[HVAC_FAN_DIRECTION_AVAILABLE] ?: return fallback
         val target = area ?: getAreaIds(config).firstOrNull() ?: return fallback
         return runCatching {
-            val value = propertyManager?.javaClass?.getMethod(
-                "getProperty",
-                Int::class.javaPrimitiveType,
-                Int::class.javaPrimitiveType,
-            )?.invoke(propertyManager, HVAC_FAN_DIRECTION_AVAILABLE, target)
-            val data = value?.javaClass?.getMethod("getValue")?.invoke(value)
-            when (data) {
-                is IntArray -> data
-                is List<*> -> data.mapNotNull { (it as? Number)?.toInt() }.toIntArray()
-                else -> fallback
-            }
+            checkNotNull(propertyManager).getIntArrayProperty(HVAC_FAN_DIRECTION_AVAILABLE, target)
         }.getOrDefault(fallback)
     }
 
@@ -893,7 +825,7 @@ class HvacController(
         } else preferences.getInt(key, default)
     }
 
-    private fun preferredArea(config: Any): Int? {
+    private fun preferredArea(config: CarPropertyConfig<*>): Int? {
         val areas = getAreaIds(config)
         return driverArea?.takeIf { it in areas } ?: areas.firstOrNull()
     }
@@ -999,10 +931,7 @@ class HvacController(
         val callback = propertyCallback
         if (unregisterCallback && manager != null && callback != null) {
             runCatching {
-                val unregister: Method? = manager.javaClass.methods.firstOrNull {
-                    it.name == "unregisterCallback" && it.parameterTypes.size == 1
-                }
-                unregister?.invoke(manager, callback)
+                manager.unregisterCallback(callback)
             }.onFailure {
                 Log.w(TAG, "event=callback_unregister_failed feature=hvac", it)
             }
@@ -1021,32 +950,28 @@ class HvacController(
 
     private companion object {
         const val TAG = "MiniIviCarHvac"
-        const val CAR_CLASS = "android.car.Car"
-        const val PROPERTY_SERVICE = "property"
-        const val CAR_PROPERTY_CALLBACK =
-            "android.car.hardware.property.CarPropertyManager\$CarPropertyEventCallback"
         const val RATE_ONCHANGE = 0f
         const val STATUS_AVAILABLE = 0
-        const val HVAC_TEMPERATURE_CURRENT = 0x15600502
-        const val HVAC_TEMPERATURE_SET = 0x15600503
-        const val HVAC_AC_ON = 0x15200505
-        const val HVAC_MAX_AC_ON = 0x15200506
-        const val HVAC_MAX_DEFROST_ON = 0x15200507
-        const val HVAC_RECIRC_ON = 0x15200508
-        const val HVAC_DUAL_ON = 0x15200509
-        const val HVAC_AUTO_ON = 0x1520050A
-        const val HVAC_POWER_ON = 0x15200510
-        const val HVAC_AUTO_RECIRC_ON = 0x15200512
-        const val HVAC_FAN_SPEED = 0x15400500
-        const val HVAC_FAN_DIRECTION = 0x15400501
-        const val HVAC_DEFROSTER = 0x13200504
-        const val HVAC_STEERING_WHEEL_HEAT = 0x1140050D
-        const val HVAC_TEMPERATURE_DISPLAY_UNITS = 0x1140050E
-        const val HVAC_SEAT_TEMPERATURE = 0x1540050B
-        const val HVAC_ELECTRIC_DEFROSTER_ON = 0x13200514
-        const val HVAC_SEAT_VENTILATION = 0x15400513
-        const val HVAC_FAN_DIRECTION_AVAILABLE = 0x15410511
-        const val INFO_DRIVER_SEAT = 0x1540010A
+        const val HVAC_TEMPERATURE_CURRENT = VehiclePropertyIds.HVAC_TEMPERATURE_CURRENT
+        const val HVAC_TEMPERATURE_SET = VehiclePropertyIds.HVAC_TEMPERATURE_SET
+        const val HVAC_AC_ON = VehiclePropertyIds.HVAC_AC_ON
+        const val HVAC_MAX_AC_ON = VehiclePropertyIds.HVAC_MAX_AC_ON
+        const val HVAC_MAX_DEFROST_ON = VehiclePropertyIds.HVAC_MAX_DEFROST_ON
+        const val HVAC_RECIRC_ON = VehiclePropertyIds.HVAC_RECIRC_ON
+        const val HVAC_DUAL_ON = VehiclePropertyIds.HVAC_DUAL_ON
+        const val HVAC_AUTO_ON = VehiclePropertyIds.HVAC_AUTO_ON
+        const val HVAC_POWER_ON = VehiclePropertyIds.HVAC_POWER_ON
+        const val HVAC_AUTO_RECIRC_ON = VehiclePropertyIds.HVAC_AUTO_RECIRC_ON
+        const val HVAC_FAN_SPEED = VehiclePropertyIds.HVAC_FAN_SPEED
+        const val HVAC_FAN_DIRECTION = VehiclePropertyIds.HVAC_FAN_DIRECTION
+        const val HVAC_DEFROSTER = VehiclePropertyIds.HVAC_DEFROSTER
+        const val HVAC_STEERING_WHEEL_HEAT = VehiclePropertyIds.HVAC_STEERING_WHEEL_HEAT
+        const val HVAC_TEMPERATURE_DISPLAY_UNITS = VehiclePropertyIds.HVAC_TEMPERATURE_DISPLAY_UNITS
+        const val HVAC_SEAT_TEMPERATURE = VehiclePropertyIds.HVAC_SEAT_TEMPERATURE
+        const val HVAC_ELECTRIC_DEFROSTER_ON = VehiclePropertyIds.HVAC_ELECTRIC_DEFROSTER_ON
+        const val HVAC_SEAT_VENTILATION = VehiclePropertyIds.HVAC_SEAT_VENTILATION
+        const val HVAC_FAN_DIRECTION_AVAILABLE = VehiclePropertyIds.HVAC_FAN_DIRECTION_AVAILABLE
+        const val INFO_DRIVER_SEAT = VehiclePropertyIds.INFO_DRIVER_SEAT
         const val DEFAULT_MINIMUM = 16f
         const val DEFAULT_MAXIMUM = 30f
         const val INITIAL_RETRY_MILLIS = 1_000L

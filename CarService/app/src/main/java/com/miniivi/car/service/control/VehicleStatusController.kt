@@ -1,14 +1,15 @@
 package com.miniivi.car.service.control
 
-import android.annotation.SuppressLint
+import android.car.Car
+import android.car.VehiclePropertyIds
+import android.car.hardware.CarPropertyConfig
+import android.car.hardware.CarPropertyValue
+import android.car.hardware.property.CarPropertyManager
 import android.content.Context
 import android.util.Log
 import com.miniivi.car.api.CarServiceError
 import com.miniivi.car.api.FeatureStatus
 import com.miniivi.car.api.VehicleStatusState
-import java.lang.reflect.Array
-import java.lang.reflect.Method
-import java.lang.reflect.Proxy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -35,7 +36,6 @@ internal object VehicleStatusPolicy {
         values.filter { it.isFinite() && it >= 0f }.minOrNull()
 }
 
-@SuppressLint("PrivateApi")
 class VehicleStatusController(
     private val context: Context,
     private val scope: CoroutineScope,
@@ -50,8 +50,8 @@ class VehicleStatusController(
     )
     private var started = false
     private var connectionJob: Job? = null
-    private var propertyManager: Any? = null
-    private var propertyCallback: Any? = null
+    private var propertyManager: CarPropertyManager? = null
+    private var propertyCallback: CarPropertyManager.CarPropertyEventCallback? = null
     private var supportedProperties = emptySet<Int>()
     private var tireAreas = emptySet<Int>()
     private val tireValues = mutableMapOf<Int, Float>()
@@ -133,7 +133,7 @@ class VehicleStatusController(
         }
     }
 
-    private fun onCarReady(lifecycleCar: Any) {
+    private fun onCarReady(lifecycleCar: Car) {
         if (!started || propertyManager != null) return
         runCatching { connectPropertyManager(lifecycleCar) }
             .onSuccess {
@@ -160,10 +160,8 @@ class VehicleStatusController(
         publishUnavailable("AAOS car service is unavailable")
     }
 
-    private fun connectPropertyManager(lifecycleCar: Any) {
-        val carClass = Class.forName(CAR_CLASS)
-        propertyManager = carClass.getMethod("getCarManager", String::class.java)
-            .invoke(lifecycleCar, PROPERTY_SERVICE)
+    private fun connectPropertyManager(lifecycleCar: Car) {
+        propertyManager = lifecycleCar.getCarManager(CarPropertyManager::class.java)
             ?: error("Car property service is unavailable")
 
         supportedProperties = PROPERTY_IDS.filter { getConfig(it) != null }.toSet()
@@ -171,7 +169,7 @@ class VehicleStatusController(
         tireAreas = tireConfig?.let(::getAreaIds)?.toSet().orEmpty()
         tireMinimums.clear()
         tireAreas.forEach { area ->
-            tireMinimums[area] = getBound(tireConfig, "getMinValue", area, DEFAULT_TIRE_MINIMUM)
+            tireMinimums[area] = getMinValue(tireConfig, area, DEFAULT_TIRE_MINIMUM)
         }
         batteryLevel = readFloatOrNull(EV_BATTERY_LEVEL)
         batteryCapacity = readFloatOrNull(EV_CURRENT_BATTERY_CAPACITY)
@@ -182,33 +180,22 @@ class VehicleStatusController(
 
     private fun registerCallbacks() {
         val manager = checkNotNull(propertyManager)
-        val callbackClass = Class.forName(CAR_PROPERTY_CALLBACK)
-        propertyCallback = Proxy.newProxyInstance(
-            callbackClass.classLoader,
-            arrayOf(callbackClass),
-        ) { proxy, method, args ->
-            when (method.name) {
-                "onChangeEvent" -> args?.firstOrNull()?.let { value ->
-                    scope.launch { handlePropertyValue(value) }
-                }
-                "onErrorEvent" -> if (!propertyErrorReported) {
+        propertyCallback = object : CarPropertyManager.CarPropertyEventCallback {
+            override fun onChangeEvent(value: CarPropertyValue<*>) {
+                scope.launch { handlePropertyValue(value) }
+            }
+
+            override fun onErrorEvent(propertyId: Int, areaId: Int) {
+                if (!propertyErrorReported) {
                     propertyErrorReported = true
                     Log.w(TAG, "event=property_error feature=vehicle_status")
                 }
-                "toString" -> "MiniIVI vehicle status callback"
-                "hashCode" -> System.identityHashCode(proxy)
-                "equals" -> proxy === args?.firstOrNull()
-                else -> null
             }
         }
-        val register = manager.javaClass.getMethod(
-            "registerCallback",
-            callbackClass,
-            Int::class.javaPrimitiveType,
-            Float::class.javaPrimitiveType,
-        )
         supportedProperties.forEach { propertyId ->
-            runCatching { register.invoke(manager, propertyCallback, propertyId, CALLBACK_RATE_HZ) }
+            runCatching {
+                manager.registerCallback(checkNotNull(propertyCallback), propertyId, CALLBACK_RATE_HZ)
+            }
                 .onFailure { error ->
                     Log.w(
                         TAG,
@@ -220,18 +207,17 @@ class VehicleStatusController(
         }
     }
 
-    private fun handlePropertyValue(value: Any) {
+    private fun handlePropertyValue(value: CarPropertyValue<*>) {
         runCatching {
-            val status = (value.javaClass.getMethod("getStatus").invoke(value) as? Int)
-                ?: STATUS_AVAILABLE
+            val status = value.status
             if (status != STATUS_AVAILABLE) return
             if (propertyErrorReported) {
                 propertyErrorReported = false
                 Log.i(TAG, "event=property_recovered feature=vehicle_status")
             }
-            val propertyId = value.javaClass.getMethod("getPropertyId").invoke(value) as Int
-            val areaId = value.javaClass.getMethod("getAreaId").invoke(value) as Int
-            val data = value.javaClass.getMethod("getValue").invoke(value)
+            val propertyId = value.propertyId
+            val areaId = value.areaId
+            val data = value.value
             when (propertyId) {
                 EV_BATTERY_LEVEL -> batteryLevel = (data as Number).toFloat()
                 EV_CURRENT_BATTERY_CAPACITY -> batteryCapacity = (data as Number).toFloat()
@@ -280,29 +266,18 @@ class VehicleStatusController(
 
     private fun readFloatOrNull(propertyId: Int, areaId: Int = GLOBAL_AREA): Float? =
         if (propertyId !in supportedProperties && propertyManager != null) null else runCatching {
-            (propertyManager?.javaClass
-                ?.getMethod("getFloatProperty", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
-                ?.invoke(propertyManager, propertyId, areaId) as Number).toFloat()
+            propertyManager?.getFloatProperty(propertyId, areaId)
         }.getOrNull()?.takeIf { it.isFinite() }
 
-    private fun getConfig(propertyId: Int): Any? = runCatching {
-        propertyManager?.javaClass
-            ?.getMethod("getCarPropertyConfig", Int::class.javaPrimitiveType)
-            ?.invoke(propertyManager, propertyId)
+    private fun getConfig(propertyId: Int): CarPropertyConfig<*>? = runCatching {
+        propertyManager?.getCarPropertyConfig(propertyId)
     }.getOrNull()
 
-    private fun getAreaIds(config: Any): IntArray {
-        val areas = requireNotNull(config.javaClass.getMethod("getAreaIds").invoke(config))
-        return IntArray(Array.getLength(areas)) { index -> Array.get(areas, index) as Int }
-    }
+    private fun getAreaIds(config: CarPropertyConfig<*>): IntArray = config.areaIds
 
-    private fun getBound(config: Any?, methodName: String, areaId: Int, fallback: Float): Float {
+    private fun getMinValue(config: CarPropertyConfig<*>?, areaId: Int, fallback: Float): Float {
         if (config == null) return fallback
-        val methods = config.javaClass.methods.filter { it.name == methodName }
-        val value = runCatching {
-            methods.firstOrNull { it.parameterTypes.size == 1 }?.invoke(config, areaId)
-                ?: methods.firstOrNull { it.parameterTypes.isEmpty() }?.invoke(config)
-        }.getOrNull()
+        val value = runCatching { config.getMinValue(areaId) }.getOrNull()
         return (value as? Number)?.toFloat() ?: fallback
     }
 
@@ -328,10 +303,7 @@ class VehicleStatusController(
         val callback = propertyCallback
         if (unregisterCallback && manager != null && callback != null) {
             runCatching {
-                val unregister: Method? = manager.javaClass.methods.firstOrNull {
-                    it.name == "unregisterCallback" && it.parameterTypes.size == 1
-                }
-                unregister?.invoke(manager, callback)
+                manager.unregisterCallback(callback)
             }.onFailure {
                 Log.w(TAG, "event=callback_unregister_failed feature=vehicle_status", it)
             }
@@ -349,21 +321,17 @@ class VehicleStatusController(
 
     private companion object {
         const val TAG = "MiniIviVehicleStatus"
-        const val CAR_CLASS = "android.car.Car"
-        const val PROPERTY_SERVICE = "property"
-        const val CAR_PROPERTY_CALLBACK =
-            "android.car.hardware.property.CarPropertyManager\$CarPropertyEventCallback"
         const val GLOBAL_AREA = 0
         const val STATUS_AVAILABLE = 0
         const val CALLBACK_RATE_HZ = 1f
         const val METERS_PER_KILOMETER = 1_000f
         const val DEFAULT_TIRE_MINIMUM = 193f
-        const val EV_BATTERY_LEVEL = 0x11600309
-        const val EV_CURRENT_BATTERY_CAPACITY = 0x1160030D
-        const val INFO_EV_BATTERY_CAPACITY = 0x11600106
-        const val RANGE_REMAINING = 0x11600308
-        const val ENV_OUTSIDE_TEMPERATURE = 0x11600703
-        const val TIRE_PRESSURE = 0x17600309
+        const val EV_BATTERY_LEVEL = VehiclePropertyIds.EV_BATTERY_LEVEL
+        const val EV_CURRENT_BATTERY_CAPACITY = VehiclePropertyIds.EV_CURRENT_BATTERY_CAPACITY
+        const val INFO_EV_BATTERY_CAPACITY = VehiclePropertyIds.INFO_EV_BATTERY_CAPACITY
+        const val RANGE_REMAINING = VehiclePropertyIds.RANGE_REMAINING
+        const val ENV_OUTSIDE_TEMPERATURE = VehiclePropertyIds.ENV_OUTSIDE_TEMPERATURE
+        const val TIRE_PRESSURE = VehiclePropertyIds.TIRE_PRESSURE
         val PROPERTY_IDS = setOf(
             EV_BATTERY_LEVEL,
             EV_CURRENT_BATTERY_CAPACITY,

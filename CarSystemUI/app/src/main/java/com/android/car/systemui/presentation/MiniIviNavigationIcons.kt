@@ -57,6 +57,93 @@ internal object MiniIviNavigationIcons {
         }.build()
     }
 
+    /** A complete front-view vehicle mark for climate and vehicle controls. */
+    val VehicleFront: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "MiniIviVehicleFront",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(
+                fill = null,
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 1.55f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                // Complete outer silhouette with a closed lower bumper and wheel arches.
+                moveTo(4.15f, 17.7f)
+                verticalLineTo(14.2f)
+                quadTo(4.15f, 12.75f, 5.25f, 11.5f)
+                lineTo(7.2f, 7.65f)
+                quadTo(7.75f, 6.45f, 9.15f, 6.1f)
+                quadTo(12f, 5.4f, 14.85f, 6.1f)
+                quadTo(16.25f, 6.45f, 16.8f, 7.65f)
+                lineTo(18.75f, 11.5f)
+                quadTo(19.85f, 12.75f, 19.85f, 14.2f)
+                verticalLineTo(17.7f)
+                quadTo(19.85f, 18.55f, 19f, 18.55f)
+                horizontalLineTo(18f)
+                quadTo(17.45f, 18.55f, 17.2f, 17.95f)
+                quadTo(16.9f, 17.2f, 15.95f, 17.2f)
+                horizontalLineTo(8.05f)
+                quadTo(7.1f, 17.2f, 6.8f, 17.95f)
+                quadTo(6.55f, 18.55f, 6f, 18.55f)
+                horizontalLineTo(5f)
+                quadTo(4.15f, 18.55f, 4.15f, 17.7f)
+                close()
+
+                // Windshield and upper cabin contour.
+                moveTo(7.5f, 10.6f)
+                lineTo(8.3f, 8.2f)
+                quadTo(8.55f, 7.6f, 9.2f, 7.45f)
+                quadTo(12f, 6.9f, 14.8f, 7.45f)
+                quadTo(15.45f, 7.6f, 15.7f, 8.2f)
+                lineTo(16.5f, 10.6f)
+                horizontalLineTo(7.5f)
+                close()
+
+                // Side mirrors.
+                moveTo(5.25f, 10.9f)
+                quadTo(4.35f, 10.55f, 3.7f, 11.1f)
+                quadTo(3.4f, 11.35f, 3.7f, 11.7f)
+                quadTo(4.35f, 12.05f, 5.1f, 11.75f)
+                moveTo(18.75f, 10.9f)
+                quadTo(19.65f, 10.55f, 20.3f, 11.1f)
+                quadTo(20.6f, 11.35f, 20.3f, 11.7f)
+                quadTo(19.65f, 12.05f, 18.9f, 11.75f)
+
+                // Hood line and narrow headlights.
+                moveTo(5.35f, 11.45f)
+                quadTo(12f, 12.05f, 18.65f, 11.45f)
+                moveTo(5.35f, 12.55f)
+                quadTo(6.45f, 12.15f, 7.75f, 12.25f)
+                lineTo(8.15f, 12.8f)
+                quadTo(6.7f, 12.9f, 5.55f, 13.2f)
+                close()
+                moveTo(18.65f, 12.55f)
+                quadTo(17.55f, 12.15f, 16.25f, 12.25f)
+                lineTo(15.85f, 12.8f)
+                quadTo(17.3f, 12.9f, 18.45f, 13.2f)
+                close()
+
+                // Center badge and complete lower bumper detail.
+                moveTo(11.35f, 12.2f)
+                quadTo(12f, 12f, 12.65f, 12.2f)
+                lineTo(12.35f, 12.75f)
+                quadTo(12f, 13f, 11.65f, 12.75f)
+                close()
+                roundedRect(7.1f, 15f, 9.8f, 2f, 0.6f)
+
+                // Lower corner lamps make the bottom edge read as complete at small sizes.
+                roundedRect(4.9f, 15f, 1.45f, 2.25f, 0.5f)
+                roundedRect(17.65f, 15f, 1.45f, 2.25f, 0.5f)
+            }
+        }.build()
+    }
+
     val ControlCenter: ImageVector by lazy {
         ImageVector.Builder(
             name = "MiniIviControlCenterQ06",

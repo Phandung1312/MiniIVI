@@ -1,6 +1,7 @@
 package com.android.car.systemui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -9,6 +10,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.getValue
@@ -16,14 +19,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.android.car.systemui.data.model.AudioState
-import com.android.car.systemui.data.model.BrightnessState
-import com.android.car.systemui.data.model.HvacState
+import com.android.car.systemui.domain.model.AudioState
+import com.android.car.systemui.domain.model.BrightnessState
+import com.android.car.systemui.domain.model.HvacState
+import com.android.car.systemui.domain.model.QuickControl
+import com.android.car.systemui.domain.model.QuickControlsState
 import com.android.car.systemui.presentation.CarSystemUiTheme
 import com.android.car.systemui.presentation.NavigationRailScreen
 import com.android.car.systemui.presentation.ControlCenterOverlay
-import com.android.car.systemui.presentation.ControlCenterUiState
+import com.android.car.systemui.presentation.model.ControlCenterUiState
+import com.android.car.systemui.presentation.model.NavigationDestination
 import kotlin.math.abs
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -115,6 +122,94 @@ class SystemUiComposeTest {
     }
 
     @Test
+    fun navigationRailShowsSelectedDestinationAndStatusPanel() {
+        composeRule.setContent {
+            CarSystemUiTheme {
+                NavigationRailScreen(
+                    controlCenterVisible = false,
+                    selectedDestination = NavigationDestination.APP_LIST,
+                    quickControls = QuickControlsState(
+                        available = true,
+                        wifiEnabled = true,
+                        wifiConnected = true,
+                        bluetoothEnabled = false,
+                        capabilities = setOf(QuickControl.WIFI, QuickControl.BLUETOOTH),
+                    ),
+                    audio = AudioState(volume = 0, maximum = 10, available = true),
+                    onHome = {},
+                    onAppList = {},
+                    onPhone = {},
+                    onControlCenter = {},
+                    onSettings = {},
+                    modifier = Modifier.size(135.2.dp, 720.dp),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("navigation_home").assertIsDisplayed()
+        composeRule.onNodeWithTag("navigation_apps").assertIsDisplayed()
+        composeRule.onNodeWithTag("navigation_call").assertIsDisplayed()
+        composeRule.onNodeWithTag("navigation_vehicle_controls").assertIsDisplayed()
+        composeRule.onNodeWithTag("navigation_status_panel").assertIsDisplayed()
+        val statusBounds = composeRule.onNodeWithTag("navigation_status_panel")
+            .fetchSemanticsNode().boundsInRoot
+        val callBounds = composeRule.onNodeWithTag("navigation_call")
+            .fetchSemanticsNode().boundsInRoot
+        assertEquals(callBounds.width, statusBounds.width, 0.01f)
+        assertTrue(callBounds.top >= statusBounds.bottom)
+        composeRule.onNodeWithContentDescription("Wi-Fi Connected")
+            .assertIsDisplayed()
+            .assertHasNoClickAction()
+        composeRule.onNodeWithContentDescription("Bluetooth Disabled")
+            .assertIsDisplayed()
+            .assertHasNoClickAction()
+        composeRule.onNodeWithContentDescription("Audio muted")
+            .assertIsDisplayed()
+            .assertHasNoClickAction()
+        composeRule.onNodeWithTag("navigation_home").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_apps").assertIsSelected()
+        composeRule.onNodeWithTag("navigation_call").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_vehicle_controls").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_settings").assertIsNotSelected()
+    }
+
+    @Test
+    fun navigationRailHasAtMostOneSelectedButton() {
+        var selectedDestination by mutableStateOf(NavigationDestination.NONE)
+        var controlCenterVisible by mutableStateOf(false)
+        composeRule.setContent {
+            CarSystemUiTheme {
+                NavigationRailScreen(
+                    controlCenterVisible = controlCenterVisible,
+                    selectedDestination = selectedDestination,
+                    onHome = {},
+                    onAppList = {},
+                    onPhone = {},
+                    onControlCenter = {},
+                    onSettings = {},
+                    modifier = Modifier.size(135.2.dp, 720.dp),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("navigation_home").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_apps").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_call").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_vehicle_controls").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_settings").assertIsNotSelected()
+
+        selectedDestination = NavigationDestination.CONTROL_CENTER
+        controlCenterVisible = true
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("navigation_home").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_apps").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_call").assertIsNotSelected()
+        composeRule.onNodeWithTag("navigation_vehicle_controls").assertIsSelected()
+        composeRule.onNodeWithTag("navigation_settings").assertIsNotSelected()
+    }
+
+    @Test
     fun moreClimateAndMockCameraFlowsAreRenderedInTheOverlayWindow() {
         var showMore by mutableStateOf(false)
         var showCamera by mutableStateOf(false)
@@ -138,7 +233,7 @@ class SystemUiComposeTest {
                     onAcChanged = {},
                     onSettings = {},
                     onShowMoreClimate = { showMore = true },
-                    onShowCamera = { showCamera = true },
+                    onOpenCamera = { showCamera = true },
                     modifier = Modifier.size(1920.dp, 1080.dp),
                 )
             }

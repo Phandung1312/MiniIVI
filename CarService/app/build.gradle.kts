@@ -80,7 +80,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.coroutines.android)
     implementation(files("libs/framework/miniivi-framework-adapter.jar"))
-
+    compileOnly(files("libs/framework/android.car.jar"))
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
     androidTestImplementation(libs.androidx.junit)

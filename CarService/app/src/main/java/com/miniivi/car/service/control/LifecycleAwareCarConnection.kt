@@ -1,9 +1,9 @@
 package com.miniivi.car.service.control
 
+import android.car.Car
 import android.content.Context
 import android.os.Handler
 import android.util.Log
-import java.lang.reflect.Proxy
 
 /**
  * Creates an android.car client that survives car_service restarts.
@@ -14,13 +14,13 @@ import java.lang.reflect.Proxy
  */
 internal class LifecycleAwareCarConnection(
     private val context: Context,
-    private val onReady: (Any) -> Unit,
+    private val onReady: (Car) -> Unit,
     private val onUnavailable: () -> Unit,
 ) {
-    private var lifecycleListener: Any? = null
+    private var lifecycleListener: Car.CarServiceLifecycleListener? = null
 
     @Volatile
-    var car: Any? = null
+    var car: Car? = null
         private set
 
     fun connect() {
@@ -31,47 +31,26 @@ internal class LifecycleAwareCarConnection(
 
         Log.i(TAG, "event=connection_requested backend=aaos")
 
-        val carClass = Class.forName(CAR_CLASS)
-        val listenerClass = Class.forName(CAR_LIFECYCLE_LISTENER_CLASS)
-        val listener = Proxy.newProxyInstance(
-            listenerClass.classLoader,
-            arrayOf(listenerClass),
-        ) { proxy, method, args ->
-            when (method.name) {
-                "onLifecycleChanged" -> {
-                    val lifecycleCar = requireNotNull(args?.getOrNull(0))
-                    val ready = args.getOrNull(1) as? Boolean ?: false
-                    car = lifecycleCar
-                    if (ready) {
-                        Log.i(TAG, "event=connection_ready backend=aaos")
-                        onReady(lifecycleCar)
-                    } else {
-                        Log.w(TAG, "event=connection_unavailable backend=aaos")
-                        onUnavailable()
-                    }
-                    null
+        val listener = object : Car.CarServiceLifecycleListener {
+            override fun onLifecycleChanged(lifecycleCar: Car, ready: Boolean) {
+                car = lifecycleCar
+                if (ready) {
+                    Log.i(TAG, "event=connection_ready backend=aaos")
+                    onReady(lifecycleCar)
+                } else {
+                    Log.w(TAG, "event=connection_unavailable backend=aaos")
+                    onUnavailable()
                 }
-                "toString" -> "MiniIVI car service lifecycle listener"
-                "hashCode" -> System.identityHashCode(proxy)
-                "equals" -> proxy === args?.firstOrNull()
-                else -> null
             }
         }
         lifecycleListener = listener
 
-        car = carClass.getMethod(
-            "createCar",
-            Context::class.java,
-            Handler::class.java,
-            Long::class.javaPrimitiveType,
-            listenerClass,
-        ).invoke(
-            null,
+        car = Car.createCar(
             context,
-            null,
-            DO_NOT_WAIT_MILLIS,
+            null as Handler?,
+            Car.CAR_WAIT_TIMEOUT_DO_NOT_WAIT,
             listener,
-        ) ?: error("Unable to create the AAOS car client")
+        )
         logDebug("event=client_created backend=aaos wait_millis=$DO_NOT_WAIT_MILLIS")
     }
 
@@ -80,7 +59,7 @@ internal class LifecycleAwareCarConnection(
         car = null
         lifecycleListener = null
         if (currentCar == null) return
-        runCatching { currentCar.javaClass.getMethod("disconnect").invoke(currentCar) }
+        runCatching { currentCar.disconnect() }
             .onSuccess { Log.i(TAG, "event=connection_closed backend=aaos") }
             .onFailure { error ->
                 Log.w(TAG, "event=connection_close_failed backend=aaos", error)
@@ -92,10 +71,7 @@ internal class LifecycleAwareCarConnection(
     }
 
     private companion object {
-        const val CAR_CLASS = "android.car.Car"
-        const val CAR_LIFECYCLE_LISTENER_CLASS =
-            "android.car.Car\$CarServiceLifecycleListener"
-        const val DO_NOT_WAIT_MILLIS = 0L
+        const val DO_NOT_WAIT_MILLIS = Car.CAR_WAIT_TIMEOUT_DO_NOT_WAIT
         const val TAG = "MiniIviCarConnection"
     }
 }

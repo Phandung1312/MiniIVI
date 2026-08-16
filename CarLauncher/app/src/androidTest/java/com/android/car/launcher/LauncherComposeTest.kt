@@ -15,12 +15,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import androidx.compose.ui.unit.dp
 import com.android.car.launcher.core.ui.MiniIviTheme
-import com.android.car.launcher.feature.dashboard.DashboardUiState
-import com.android.car.launcher.feature.dashboard.HomeAppCatalog
-import com.android.car.launcher.feature.dashboard.HomeDestination
-import com.android.car.launcher.feature.dashboard.ui.HomeScreen
-import com.miniivi.car.api.FeatureStatus
-import com.miniivi.car.api.VehicleStatusState
+import com.android.car.launcher.feature.dashboard.domain.model.FeatureStatus
+import com.android.car.launcher.feature.dashboard.domain.model.HomeDestination
+import com.android.car.launcher.feature.dashboard.domain.model.VehicleStatusState
+import com.android.car.launcher.feature.dashboard.presentation.model.DashboardUiState
+import com.android.car.launcher.feature.dashboard.presentation.ui.HomeScreen
 import org.junit.Rule
 import org.junit.Test
 
@@ -33,9 +32,7 @@ class LauncherComposeTest {
         composeRule.setContent {
             MiniIviTheme {
                 HomeScreen(
-                    destination = HomeDestination.Home,
-                    state = DashboardUiState(),
-                    apps = HomeAppCatalog.apps,
+                    state = DashboardUiState(destination = HomeDestination.Home),
                     onBackToHome = {},
                     onAppClick = {},
                     onPlayPause = {},
@@ -66,9 +63,7 @@ class LauncherComposeTest {
         composeRule.setContent {
             MiniIviTheme {
                 HomeScreen(
-                    destination = HomeDestination.Apps,
-                    state = DashboardUiState(),
-                    apps = HomeAppCatalog.apps,
+                    state = DashboardUiState(destination = HomeDestination.Apps),
                     onBackToHome = {},
                     onAppClick = {},
                     onPlayPause = {},
@@ -92,9 +87,7 @@ class LauncherComposeTest {
             Box(Modifier.size(1280.dp, 720.dp)) {
                 MiniIviTheme {
                     HomeScreen(
-                        destination = HomeDestination.Apps,
-                        state = DashboardUiState(),
-                        apps = HomeAppCatalog.apps,
+                        state = DashboardUiState(destination = HomeDestination.Apps),
                         onBackToHome = {},
                         onAppClick = {},
                         onPlayPause = {},
@@ -123,9 +116,7 @@ class LauncherComposeTest {
             Box(Modifier.size(1280.dp, 720.dp).testTag("dashboard_root")) {
                 MiniIviTheme {
                     HomeScreen(
-                        destination = HomeDestination.Home,
-                        state = DashboardUiState(),
-                        apps = HomeAppCatalog.apps,
+                        state = DashboardUiState(destination = HomeDestination.Home),
                         onBackToHome = {},
                         onAppClick = {},
                         onPlayPause = {},
@@ -180,8 +171,8 @@ class LauncherComposeTest {
             Box(Modifier.size(1920.dp, 1080.dp)) {
                 MiniIviTheme {
                     HomeScreen(
-                        destination = HomeDestination.Home,
                         state = DashboardUiState(
+                            destination = HomeDestination.Home,
                             vehicleStatus = VehicleStatusState(
                                 status = FeatureStatus.READY,
                                 available = true,
@@ -195,7 +186,6 @@ class LauncherComposeTest {
                                 minimumTirePressureKpa = 200f,
                             ),
                         ),
-                        apps = HomeAppCatalog.apps,
                         onBackToHome = {},
                         onAppClick = {},
                         onPlayPause = {},

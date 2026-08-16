@@ -1,4 +1,4 @@
-package com.android.car.launcher.feature.dashboard
+package com.android.car.launcher.feature.dashboard.domain.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
