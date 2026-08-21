@@ -60,6 +60,7 @@ android {
 dependencies {
     implementation(project(":map-preview-contract"))
     implementation(project(":car-service-client"))
+    implementation(project(":navigation-contract"))
     val composeBom = platform("androidx.compose:compose-bom:2025.02.00")
     implementation(composeBom)
     implementation("androidx.activity:activity-compose:1.10.1")

@@ -3,6 +3,8 @@ package com.android.car.launcher.feature.dashboard.data.di
 import com.android.car.launcher.feature.dashboard.data.repository.CarServiceHvacRepository
 import com.android.car.launcher.feature.dashboard.data.repository.CarServiceVehicleRepository
 import com.android.car.launcher.feature.dashboard.data.repository.CarSystemUiNavigationStateReporter
+import com.android.car.launcher.feature.dashboard.data.repository.AndroidNavigationStateConnection
+import com.android.car.launcher.feature.dashboard.data.repository.NavigationStateConnection
 import com.android.car.launcher.feature.dashboard.domain.repository.HvacRepository
 import com.android.car.launcher.feature.dashboard.domain.repository.NavigationStateReporter
 import com.android.car.launcher.feature.dashboard.domain.repository.VehicleRepository
@@ -19,6 +21,11 @@ abstract class DashboardModule {
 
     @Binds
     abstract fun bindHvacRepository(repository: CarServiceHvacRepository): HvacRepository
+
+    @Binds
+    abstract fun bindNavigationStateConnection(
+        connection: AndroidNavigationStateConnection,
+    ): NavigationStateConnection
 
     @Binds
     abstract fun bindNavigationStateReporter(

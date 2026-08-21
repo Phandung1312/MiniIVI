@@ -1,0 +1,77 @@
+@startuml ARCHITECTURE
+
+title MiniIVI Architecture Overview
+
+top to bottom direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 45
+skinparam ranksep 55
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 14
+skinparam ArrowColor #355070
+skinparam ComponentBorderColor #355070
+skinparam ComponentBackgroundColor #F7FAFC
+skinparam PackageBorderColor #607D8B
+skinparam PackageBackgroundColor #F8FAFC
+skinparam NoteBackgroundColor #FFF8E1
+skinparam NoteBorderColor #B7791F
+
+legend bottom
+  solid  = Binder, state, and command flow
+  dashed = Intent, activity-launch, and navigation action flow
+  dotted = shared cross-process contract dependency
+endlegend
+
+package "Android Automotive OS" as AAOS {
+  component "AAOS car_service\nCarPropertyManager / CarAudioManager" as AAOS_CAR
+  component "Platform services\nAudio / Display / Settings" as AAOS_PLATFORM
+}
+
+package "MiniIVI backend process" as BACKEND {
+  component "CarService\nprivileged Binder backend\nIMiniIviCarService (AIDL)" as CAR_SERVICE
+}
+
+package "MiniIVI client processes" as CLIENTS {
+  component "CarSystemUI\nsystem navigation and controls" as CAR_SYSTEM_UI
+  component "NavigationStateService\nsignature-protected Binder endpoint\nINavigationStateService (AIDL)" as NAV_SERVICE
+  component "CarLauncher\nhome and dashboard" as CAR_LAUNCHER
+}
+
+package "Shared contract" as CONTRACT {
+  component "navigation-contract\nAIDL + destination constants" as NAV_CONTRACT
+}
+
+AAOS_CAR --> CAR_SERVICE : vehicle data and commands
+AAOS_PLATFORM --> CAR_SERVICE : platform services / fallback
+
+CAR_SYSTEM_UI <--> CAR_SERVICE : Binder\ncommands + state
+CAR_LAUNCHER <--> CAR_SERVICE : Binder\ncommands + state
+
+CAR_SYSTEM_UI -[dashed]-> CAR_LAUNCHER : key / Intent\nnavigation action
+CAR_LAUNCHER --> NAV_SERVICE : bind +\nreportDestination()
+NAV_SERVICE --> CAR_SYSTEM_UI : map destination +\nupdate navigation state
+
+NAV_CONTRACT ..> CAR_LAUNCHER : AIDL + constants
+NAV_CONTRACT ..> NAV_SERVICE : AIDL + constants
+
+note right of CLIENTS
+  CarLauncher and CarSystemUI run in separate processes.
+  They bind independently to the same CarService.
+  CarLauncher also binds lazily to the
+  signature-protected NavigationStateService.
+  Destination state crosses the process boundary
+  through oneway AIDL.
+end note
+
+note bottom of CAR_SERVICE #FDECEC
+  REFACTOR WATCHLIST
+  * Share one AAOS session across controllers
+  * Split Binder facade from controller ownership
+  * Expose live vs fallback data source
+end note
+
+@enduml

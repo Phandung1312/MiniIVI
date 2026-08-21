@@ -1,0 +1,58 @@
+@startuml BOOT_LIFECYCLE
+
+title MiniIVI Boot and Lifecycle
+
+autonumber
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam ArrowColor #355070
+
+legend bottom
+  solid  = startup, Binder, and state flow
+  dashed = boot broadcast or activity resolution
+endlegend
+
+participant "AAOS\nBoot completed" as BOOT
+participant "CarService\nBootReceiver" as CS_BOOT
+participant "CarService\nMiniIviCarService" as CS
+participant "AAOS\ncar_service" as AAOS_CAR
+participant "CarSystemUI\nInitializer" as SUI
+participant "CarSystemUI\nNavigationStateService" as NAV_SERVICE
+participant "CarLauncher\nHomeActivity" as LAUNCHER
+
+BOOT -[dashed]-> CS_BOOT : BOOT_COMPLETED
+CS_BOOT -> CS : start privileged service
+CS -> AAOS_CAR : connect to AAOS APIs
+AAOS_CAR --> CS : connection ready
+CS --> CS_BOOT : CarService ready
+
+BOOT -[dashed]-> SUI : BOOT_COMPLETED
+SUI -> SUI : start navigation rail\nand control center
+
+BOOT -[dashed]-> LAUNCHER : resolve HOME activity
+LAUNCHER -> CS : bind to CarService
+CS --> LAUNCHER : Binder connection
+LAUNCHER -> CS : get initial state\nregister callbacks
+CS --> LAUNCHER : initial state
+
+LAUNCHER -> NAV_SERVICE : bind on first destination report
+NAV_SERVICE --> LAUNCHER : NavigationStateService Binder
+LAUNCHER -> NAV_SERVICE : oneway reportDestination(int)
+
+SUI -> CS : bind through MiniIviCarClient
+CS --> SUI : Binder connection
+SUI -> CS : get initial state\nregister callbacks
+CS --> SUI : initial state
+
+note over LAUNCHER,SUI
+  The apps do not share state in memory.
+  CarService is the shared state boundary.
+  NavigationStateService is the dedicated
+  SystemUI boundary for launcher destination state.
+end note
+
+@enduml

@@ -1,10 +1,6 @@
 package com.android.car.systemui.navigation
 
-import android.content.Context
-import android.content.IntentFilter
 import android.graphics.PixelFormat
-import android.os.Build
-import android.os.Handler
 import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
@@ -23,28 +19,22 @@ import com.android.car.systemui.presentation.CarSystemUiTheme
 import com.android.car.systemui.presentation.controller.ControlCenterStateController
 import com.android.car.systemui.presentation.controller.SystemUiStateController
 import com.android.car.systemui.presentation.NavigationRailScreen
-import com.miniivi.car.api.NavigationStateContract
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class NavigationComponent @Inject constructor(
-    @ApplicationContext
-    private val context: Context,
     private val windowManager: WindowManager,
     private val windowLayout: SystemUiWindowLayout,
     private val composeViewFactory: SystemUiComposeViewFactory,
     private val systemUiStateController: SystemUiStateController,
     private val controlCenterStateController: ControlCenterStateController,
-    private val launcherDestinationReceiver: LauncherDestinationReceiver,
 ) : CarSystemUIStartable {
     private var navigationView: ComposeView? = null
     private var navigationLayoutParams: WindowManager.LayoutParams? = null
 
     override fun start() {
         if (navigationView != null) return
-        registerLauncherDestinationReceiver()
         showNavigationBar()
     }
 
@@ -52,27 +42,6 @@ class NavigationComponent @Inject constructor(
         navigationLayoutParams?.let { params ->
             params.width = windowLayout.navigationWidthPx()
             navigationView?.let { windowManager.updateViewLayout(it, params) }
-        }
-    }
-
-    private fun registerLauncherDestinationReceiver() {
-        val filter = IntentFilter(NavigationStateContract.ACTION_DESTINATION_CHANGED)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(
-                launcherDestinationReceiver,
-                filter,
-                CROSS_USER_PERMISSION,
-                Handler(context.mainLooper),
-                Context.RECEIVER_EXPORTED,
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            context.registerReceiver(
-                launcherDestinationReceiver,
-                filter,
-                CROSS_USER_PERMISSION,
-                Handler(context.mainLooper),
-            )
         }
     }
 
@@ -127,7 +96,6 @@ class NavigationComponent @Inject constructor(
 
     private companion object {
         const val TAG = "MiniIviSystemUi"
-        const val CROSS_USER_PERMISSION = "android.permission.INTERACT_ACROSS_USERS_FULL"
         const val TYPE_NAVIGATION_BAR_PANEL = 2024
     }
 }

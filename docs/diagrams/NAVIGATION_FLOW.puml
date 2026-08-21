@@ -1,0 +1,64 @@
+@startuml NAVIGATION_FLOW
+
+title CarSystemUI and CarLauncher Navigation Flow
+
+autonumber
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam ArrowColor #355070
+
+legend bottom
+  solid  = local state update
+  dashed = activity-launch and navigation action flow
+  dotted = shared cross-process contract dependency
+endlegend
+
+participant "CarSystemUI\nNavigation rail" as SYSTEM_UI
+participant "CarSystemUI\nNavigationRepository" as NAV_REPO
+participant "CarLauncher\nHomeActivity" as LAUNCHER
+participant "CarLauncher\nNavigationStateReporter" as REPORTER
+participant "CarLauncher\nAndroidNavigationStateConnection" as CONNECTION
+participant "CarSystemUI\nNavigationStateService" as STATE_SERVICE
+participant "CarSystemUI\nSystemUiStateController" as STATE_CONTROLLER
+
+SYSTEM_UI -> NAV_REPO : user selects Home / Apps / Phone
+NAV_REPO -[dashed]-> LAUNCHER : explicit Intent / HOME action
+LAUNCHER -> LAUNCHER : render destination
+LAUNCHER -> REPORTER : report current destination
+
+REPORTER -> CONNECTION : cache latest destination
+opt first report or disconnected
+  CONNECTION -> STATE_SERVICE : bindService()\nsignature permission
+  STATE_SERVICE --> CONNECTION : onServiceConnected(IBinder)
+  CONNECTION -> REPORTER : onConnected(endpoint)
+end
+REPORTER -> STATE_SERVICE : oneway reportDestination(int)
+STATE_SERVICE -> STATE_CONTROLLER : map value + post to main
+STATE_CONTROLLER -> SYSTEM_UI : selected destination state
+SYSTEM_UI -> SYSTEM_UI : update selected rail item
+
+opt service unavailable
+  CONNECTION -> CONNECTION : exponential backoff retry
+  REPORTER -> REPORTER : retain latest destination
+end
+
+SYSTEM_UI -> NAV_REPO : user selects system action
+NAV_REPO -> NAV_REPO : resolve target activity or HOME
+NAV_REPO -[dashed]-> LAUNCHER : explicit Intent / HOME action
+
+note over SYSTEM_UI,LAUNCHER
+  Navigation is a feedback loop across process boundaries.
+  It is not shared in-memory UI state.
+end note
+
+note over CONNECTION,STATE_SERVICE
+  navigation-contract owns the AIDL interface,
+  service identity, permission, and destination constants.
+  It is shared by CarLauncher and CarSystemUI.
+end note
+
+@enduml
