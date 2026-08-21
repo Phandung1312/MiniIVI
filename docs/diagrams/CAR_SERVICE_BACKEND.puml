@@ -1,0 +1,62 @@
+@startuml CAR_SERVICE_BACKEND
+
+title CarService Backend Data Flow
+
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 35
+skinparam ranksep 45
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam ArrowColor #355070
+skinparam ComponentBorderColor #355070
+skinparam ComponentBackgroundColor #F7FAFC
+skinparam PackageBorderColor #607D8B
+skinparam PackageBackgroundColor #F8FAFC
+skinparam NoteBackgroundColor #FFF8E1
+skinparam NoteBorderColor #B7791F
+
+legend bottom
+  solid = command and state flow
+  dotted red = refactor hotspot
+endlegend
+
+component "CarLauncher\nMiniIviCarClient" as LAUNCHER
+component "CarSystemUI\nMiniIviCarClient" as SYSTEM_UI
+
+package "CarService" as SERVICE {
+  component "MiniIviCarService\nBinder facade\nIMiniIviCarService (AIDL)" as FACADE
+  component "Six feature controllers\nbrightness / audio / HVAC\nvehicle / quick controls / Bluetooth" as CONTROLLERS
+  component "RemoteCallbackList\nstate publisher" as PUBLISHER
+  component "AAOS session\nLifecycleAwareCarConnection" as SESSION
+  component "Fallback / persisted state" as FALLBACK
+}
+
+package "AAOS platform" as AAOS {
+  component "CarPropertyManager\nHVAC and vehicle" as PROPERTY
+  component "CarAudioManager\naudio" as AUDIO
+  component "Platform services" as PLATFORM
+}
+
+LAUNCHER --> FACADE : commands
+SYSTEM_UI --> FACADE : commands
+FACADE --> CONTROLLERS : command
+CONTROLLERS --> SESSION : AAOS session
+SESSION --> PROPERTY : properties
+SESSION --> AUDIO : audio
+CONTROLLERS --> PLATFORM : platform
+CONTROLLERS --> FALLBACK : fallback
+CONTROLLERS --> PUBLISHER : state
+PUBLISHER --> FACADE : callback
+FACADE --> LAUNCHER : state updates
+FACADE --> SYSTEM_UI : state updates
+
+SESSION -[#B91C1C,dotted]-> CONTROLLERS : share session
+FACADE -[#B91C1C,dotted]-> CONTROLLERS : split layers
+FALLBACK -[#B91C1C,dotted]-> CONTROLLERS : mark data source
+
+@enduml

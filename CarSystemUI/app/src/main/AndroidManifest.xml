@@ -4,6 +4,10 @@
     android:sharedUserId="android.uid.system"
     tools:ignore="ProtectedPermissions">
 
+    <permission
+        android:name="com.android.car.systemui.permission.BIND_NAVIGATION_STATE"
+        android:protectionLevel="signature" />
+
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.STATUS_BAR_SERVICE" />
     <uses-permission android:name="android.permission.MANAGE_USERS" />
@@ -41,6 +45,14 @@
             android:name=".service.CarSystemUIService"
             android:directBootAware="true"
             android:exported="false" />
+
+        <service
+            android:name=".navigation.NavigationStateService"
+            android:directBootAware="true"
+            android:exported="true"
+            android:permission="com.android.car.systemui.permission.BIND_NAVIGATION_STATE"
+            android:singleUser="true"
+            tools:ignore="ExportedService,SingleUser" />
 
         <service
             android:name=".wallpaper.CarWallpaperService"

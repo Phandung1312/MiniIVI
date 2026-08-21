@@ -7,6 +7,7 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="com.miniivi.car.permission.CONTROL" />
+    <uses-permission android:name="com.android.car.systemui.permission.BIND_NAVIGATION_STATE" />
     <uses-permission android:name="com.miniivi.maps.permission.BIND_MAP_PREVIEW" />
 
     <queries>

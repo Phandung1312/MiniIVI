@@ -1,36 +1,52 @@
 package com.android.car.launcher.feature.dashboard.data.repository
 
-import android.content.Context
-import android.content.Intent
-import android.os.Process
-import android.os.UserHandle
 import com.android.car.launcher.feature.dashboard.domain.repository.LauncherNavigationDestination
 import com.android.car.launcher.feature.dashboard.domain.repository.NavigationStateReporter
-import com.miniivi.car.api.NavigationStateContract
-import dagger.hilt.android.qualifiers.ApplicationContext
+import com.miniivi.navigation.contract.NavigationContract
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class CarSystemUiNavigationStateReporter @Inject constructor(
-    @ApplicationContext private val context: Context,
+    private val connection: NavigationStateConnection,
 ) : NavigationStateReporter {
-    override fun report(destination: LauncherNavigationDestination) {
-        val destinationValue = when (destination) {
-            LauncherNavigationDestination.Home -> NavigationStateContract.DESTINATION_HOME
-            LauncherNavigationDestination.AppList -> NavigationStateContract.DESTINATION_APP_LIST
-            LauncherNavigationDestination.None -> NavigationStateContract.DESTINATION_NONE
+    private var started = false
+    private var service: NavigationStateEndpoint? = null
+    private var latestDestination: Int? = null
+
+    private val connectionListener = object : NavigationStateConnection.Listener {
+        override fun onConnected(service: NavigationStateEndpoint) {
+            this@CarSystemUiNavigationStateReporter.service = service
+            latestDestination?.let { reportToService(service, it) }
         }
-        val intent = Intent(NavigationStateContract.ACTION_DESTINATION_CHANGED)
-            .setPackage(SYSTEM_UI_PACKAGE)
-            .putExtra(NavigationStateContract.EXTRA_DESTINATION, destinationValue)
-        context.sendBroadcastAsUser(
-            intent,
-            UserHandle.getUserHandleForUid(Process.SYSTEM_UID),
-        )
+
+        override fun onDisconnected() {
+            service = null
+        }
     }
 
-    private companion object {
-        const val SYSTEM_UI_PACKAGE = "com.android.car.systemui"
+    override fun report(destination: LauncherNavigationDestination) {
+        val destinationValue = when (destination) {
+            LauncherNavigationDestination.Home -> NavigationContract.DESTINATION_HOME
+            LauncherNavigationDestination.AppList -> NavigationContract.DESTINATION_APP_LIST
+            LauncherNavigationDestination.None -> NavigationContract.DESTINATION_NONE
+        }
+        latestDestination = destinationValue
+        if (!started) {
+            started = true
+            connection.start(connectionListener)
+        }
+        service?.let { reportToService(it, destinationValue) }
+    }
+
+    private fun reportToService(
+        service: NavigationStateEndpoint,
+        destination: Int,
+    ) {
+        if (!service.reportDestination(destination)) {
+            this.service = null
+            connection.stop()
+            if (started) connection.start(connectionListener)
+        }
     }
 }

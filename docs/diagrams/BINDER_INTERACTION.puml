@@ -1,0 +1,60 @@
+@startuml BINDER_INTERACTION
+
+title CarService Binder Interaction
+
+autonumber
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam ArrowColor #355070
+
+legend bottom
+  solid = Binder, command, and state callback flow
+  dotted red = refactor hotspot
+endlegend
+
+participant "CarLauncher\nMiniIviCarClient" as LAUNCHER
+participant "CarSystemUI\nMiniIviCarClient" as SYSTEM_UI
+participant "IMiniIviCarService\nAIDL boundary" as API
+participant "CarService\nBinder facade" as SERVICE
+participant "Feature controllers" as CONTROLLERS
+participant "AAOS car_service" as AAOS_CAR
+
+LAUNCHER -> API : bindService()
+SYSTEM_UI -> API : bindService()
+API -> SERVICE : Binder connection
+SERVICE --> LAUNCHER : onServiceConnected
+SERVICE --> SYSTEM_UI : onServiceConnected
+
+LAUNCHER -> API : get initial state
+SYSTEM_UI -> API : get initial state
+API -> SERVICE : Binder transaction
+SERVICE --> API : current feature states
+API --> LAUNCHER : initial state
+API --> SYSTEM_UI : initial state
+
+LAUNCHER -> API : register state listeners
+SYSTEM_UI -> API : register state listeners
+API -> SERVICE : register callbacks
+SERVICE --> API : listener registered
+
+SYSTEM_UI -> API : set HVAC / audio / quick control
+API -> SERVICE : command transaction
+SERVICE -> CONTROLLERS : update feature
+CONTROLLERS -> AAOS_CAR : write AAOS property or audio state
+AAOS_CAR --> CONTROLLERS : applied state
+CONTROLLERS --> SERVICE : new state
+SERVICE --> API : RemoteCallbackList callback
+API --> LAUNCHER : state update
+API --> SYSTEM_UI : state update
+
+SERVICE -[dashed]-> LAUNCHER : Binder death notification
+LAUNCHER -> LAUNCHER : retry with backoff
+LAUNCHER -> API : reconnect and re-register
+
+SERVICE -[#B91C1C,dotted]-> CONTROLLERS : HOTSPOT\nfacade can become a god service
+
+@enduml

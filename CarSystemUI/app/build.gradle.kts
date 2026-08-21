@@ -87,6 +87,7 @@ dependencies {
     compileOnly(fileTree("libs/framework") { include("*.jar") })
     implementation(files("libs/framework/miniivi-framework-adapter.jar"))
     implementation(project(":car-service-client"))
+    implementation(project(":navigation-contract"))
 
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
